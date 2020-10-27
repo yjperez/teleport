@@ -1,0 +1,25 @@
+teleport:
+  nodename: teleport
+  data_dir: /var/lib/teleport
+  log:
+    output: stderr
+    severity: DEBUG
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  tokens:
+  - node:8d377014cfd0ca81d8c782c568a089ff30f0138764cfcc05
+  authentication:
+    type: local
+    second_factor: off
+proxy_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3023
+  web_listen_addr: 0.0.0.0:3080
+  tunnel_listen_addr: 0.0.0.0:3024
+  public_addr: "teleport:3080"
+  ssh_public_addr: "teleport:3023"
+  tunnel_public_addr: "teleport:3024"
+ssh_service:
+  enabled: "no"
+

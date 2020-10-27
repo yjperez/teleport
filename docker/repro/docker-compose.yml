@@ -1,0 +1,28 @@
+version: '2'
+services:
+  teleport:
+    image: quay.io/gravitational/teleport:4.4
+    container_name: teleport
+    entrypoint: /bin/sh
+    hostname: teleport
+    command: -c "/usr/bin/dumb-init teleport start -c /etc/teleport/teleport.yaml --bootstrap /etc/teleport/bootstrap.yaml"
+    ports:
+      - "3023:3023"
+      - "3024:3024"
+      - "3080:3080"
+    volumes:
+      - ./teleport/config:/etc/teleport
+      - ./teleport/data:/var/lib/teleport
+
+  teleport-node:
+    image: quay.io/gravitational/teleport:4.4
+    container_name: teleport-node
+    entrypoint: /bin/sh
+    hostname: teleport-node
+    command: -c "sleep 2 && /usr/bin/dumb-init teleport start --insecure -c /etc/teleport/teleport.yaml"
+    volumes:
+      - ./teleport-node/config:/etc/teleport
+      - ./teleport-node/data:/var/lib/teleport
+    depends_on:
+      - teleport
+

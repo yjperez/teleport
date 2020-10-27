@@ -1,0 +1,25 @@
+kind: user
+metadata:
+  name: testuser
+spec:
+  created_by:
+    time: "2020-10-27T14:08:00.516371011Z"
+    user:
+      name: f70fab81-bdcc-4f8a-be50-df0eb5206058.teleport
+  expires: "0001-01-01T00:00:00Z"
+  local_auth:
+    password_hash: JDJhJDEwJHFBdmJxVWlQSndiL0QybFYxcFd3Ri45L2FTQWpKcFVjSFI2amJ5bXZoaHM5c25XTDFWTTNL
+  roles:
+  - admin
+  status:
+    is_locked: false
+    lock_expires: "0001-01-01T00:00:00Z"
+    locked_time: "0001-01-01T00:00:00Z"
+  traits:
+    kubernetes_groups: null
+    kubernetes_users:
+    - testuser
+    logins:
+    - root
+version: v2
+

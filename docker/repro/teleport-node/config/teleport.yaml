@@ -1,0 +1,16 @@
+teleport:
+  nodename: teleport-node
+  data_dir: /var/lib/teleport
+  auth_token: 8d377014cfd0ca81d8c782c568a089ff30f0138764cfcc05
+  auth_servers:
+    - teleport:3080
+  log:
+    output: stderr
+    severity: DEBUG
+auth_service:
+  enabled: "no"
+ssh_service:
+  enabled: "yes"
+proxy_service:
+  enabled: "no"
+

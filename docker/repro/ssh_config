@@ -1,0 +1,6 @@
+Host teleport-node
+    User root
+    ProxyCommand ssh root@localhost -p 3023 -s proxy:%h:%p
+    Port 3022
+    IdentityFile ~/.tsh/keys/teleport/testuser
+
