@@ -199,6 +199,12 @@ message Rewrite {
     // Redirect defines a list of hosts which will be rewritten to the public
     // address of the application if they occur in the "Location" header.
     repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
+    // UsernameHeader is the name of the header that contains the identity of
+    // the Teleport user.
+    string UsernameHeader = 2 [ (gogoproto.jsontag) = "username_header,omitempty" ];
+    // RolesHeader is the name of the header that contains the roles assigned
+    // to the Teleport user.
+    string RolesHeader = 3 [ (gogoproto.jsontag) = "roles_header,omitempty" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

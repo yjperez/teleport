@@ -2747,7 +2747,9 @@ func (process *TeleportProcess) initApps() {
 			}
 			if app.Rewrite != nil {
 				a.Rewrite = &services.Rewrite{
-					Redirect: app.Rewrite.Redirect,
+					Redirect:       app.Rewrite.Redirect,
+					UsernameHeader: app.Rewrite.UsernameHeader,
+					RolesHeader:    app.Rewrite.RolesHeader,
 				}
 			}
 

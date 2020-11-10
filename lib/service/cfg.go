@@ -545,6 +545,14 @@ type App struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string
+
+	// UsernameHeader is the name of the header that contains the identity of
+	// the Teleport user.
+	UsernameHeader string
+
+	// RolesHeader is the name of the header that contains the roles assigned
+	// to the Teleport user.
+	RolesHeader string
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

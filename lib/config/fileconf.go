@@ -179,6 +179,8 @@ var (
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
+		"username_header":         false,
+		"roles_header":            false,
 	}
 )
 
@@ -863,6 +865,14 @@ type App struct {
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
 	Redirect []string `yaml:"redirect"`
+
+	// UsernameHeader is the name of the header that contains the identity of
+	// the Teleport user.
+	UsernameHeader string `yaml:"username_header,omitempty"`
+
+	// RolesHeader is the name of the header that contains the roles assigned
+	// to the Teleport user.
+	RolesHeader string `yaml:"roles_header,omitempty"`
 }
 
 // CheckAndSetDefaults validates an application.

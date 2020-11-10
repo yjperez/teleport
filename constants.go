@@ -701,4 +701,12 @@ const (
 
 	// AppCFHeader is a compatibility header.
 	AppCFHeader = "cf-access-token"
+
+	// AppUsernameHeader is header containing the identity of the client passed
+	// to the internal application being proxied.
+	AppUsernameHeader = "teleport-username"
+
+	// AppUsernameHeader is header containing the roles of the logged in user
+	// passed to the internal application being proxied.
+	AppRolesHeader = "teleport-roles"
 )

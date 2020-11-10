@@ -445,6 +445,12 @@ func CompareApps(a []*App, b []*App) int {
 			return Different
 		}
 		if a[i].Rewrite != nil && b[i].Rewrite != nil {
+			if a[i].Rewrite.UsernameHeader != b[i].Rewrite.UsernameHeader {
+				return Different
+			}
+			if a[i].Rewrite.RolesHeader != b[i].Rewrite.RolesHeader {
+				return Different
+			}
 			if !utils.StringSlicesEqual(a[i].Rewrite.Redirect, b[i].Rewrite.Redirect) {
 				return Different
 			}
@@ -494,7 +500,9 @@ const ServerSpecV2Schema = `{
              "type": "object",
              "additionalProperties": false,
              "properties": {
-                "redirect": {"type": ["array"], "items": {"type": "string"}}
+                "redirect": {"type": ["array"], "items": {"type": "string"}},
+                "username_header": {"type": "string"},
+                "roles_header": {"type": "string"}
              }
           },
           "labels": {

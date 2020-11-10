@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
@@ -44,6 +45,8 @@ type transportConfig struct {
 	jwt                string
 	rewrite            *services.Rewrite
 	w                  events.StreamWriter
+	username           string
+	roles              []string
 }
 
 // Check validates configuration.
@@ -62,6 +65,12 @@ func (c *transportConfig) Check() error {
 	}
 	if c.jwt == "" {
 		return trace.BadParameter("jwt missing")
+	}
+	if c.username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if len(c.roles) == 0 {
+		return trace.BadParameter("roles missing")
 	}
 
 	return nil
@@ -162,9 +171,27 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = t.uri.Scheme
 	r.URL.Host = t.uri.Host
 
-	// Add in JWT header.
+	// Add in signed identity header (JWT).
 	r.Header.Add(teleport.AppJWTHeader, t.c.jwt)
 	r.Header.Add(teleport.AppCFHeader, t.c.jwt)
+
+	// Figure out the name of the unsigned headers used to pass identity
+	// information. By default they are "teleport-username" and "teleport-roles"
+	// but they can be overridden in file configuration.
+	usernameHeader := teleport.AppUsernameHeader
+	rolesHeader := teleport.AppRolesHeader
+	if t.c.rewrite != nil {
+		if t.c.rewrite.UsernameHeader != "" {
+			usernameHeader = t.c.rewrite.UsernameHeader
+		}
+		if t.c.rewrite.RolesHeader != "" {
+			rolesHeader = t.c.rewrite.RolesHeader
+		}
+	}
+
+	// Add in unsigned identity headers.
+	r.Header.Add(usernameHeader, t.c.username)
+	r.Header.Add(rolesHeader, strings.Join(t.c.roles, ","))
 
 	return nil
 }

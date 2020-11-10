@@ -784,7 +784,9 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		if application.Rewrite != nil {
 			a.Rewrite = &service.Rewrite{
-				Redirect: application.Rewrite.Redirect,
+				Redirect:       application.Rewrite.Redirect,
+				UsernameHeader: application.Rewrite.UsernameHeader,
+				RolesHeader:    application.Rewrite.RolesHeader,
 			}
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, a)
