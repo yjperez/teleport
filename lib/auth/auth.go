@@ -304,6 +304,14 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.clock = clock
 }
 
+func (a *Server) GetEmitter() events.Emitter {
+	return a.emitter
+}
+
+func (a *Server) SetEmitter(emitter events.Emitter) {
+	a.emitter = emitter
+}
+
 // SetAuditLog sets the server's audit log
 func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog

@@ -179,7 +179,8 @@ func (c *LicenseV3) GetMetadata() Metadata {
 // GetReportsUsage returns true if teleport cluster reports usage
 // to control plane
 func (c *LicenseV3) GetReportsUsage() Bool {
-	return c.Spec.ReportsUsage
+	return NewBool(true)
+	//return c.Spec.ReportsUsage
 }
 
 // GetCloud returns true if teleport cluster is hosted by Gravitational
