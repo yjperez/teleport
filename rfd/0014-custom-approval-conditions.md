@@ -106,39 +106,78 @@ state.
 #### Supporting Extended Options
 
 Ideally, all options available in the old approval style should be available in thresholded
-approvals (i.e. an approval threshold of `1` should not be a special case).  Furthermore, in
-a distributed system like teleport, order-independence is important.  This means that the
-obvious solution of just treating the *final* approval (the one which actually triggers the
-state transition) as a special case is out of the question.
+approvals (i.e. an approval threshold of `1` should not be a special case).  Unfortunately,
+not all parameters supported by the existing system translate intuitively to a multi-party
+system:
 
 
 ##### Annotations
 
 Calculating the `ResolveAnnotations` (annotations supplied upon approval/denial) of a request
-is a bit tricky, but since they are of the form `map[string][]string` the annotations of all
-proposals could theoretically be "summed" s.t. each key contains the values specified in all
-proposals.  This isn't a perfect solution, as it would prevent users from treating the order
-of annotations as meaningful, but there is no precedence for treating the order of annotations
-as meaningful, so this isn't a massive concern.
+is a bit tricky.  If two proposals provide two different annotation mappings, do you pick one?
+Simply using the annotations from either the first or last proposal is problematic because that
+makes us very sensistive to ordering (potentially leading to very confusing bugs).
+
+Given that annotations are of the form `map[string][]string`, the annotations of all
+proposals could theoretically be "summed" (e.g. `{"hello": ["world"]}` and `{"hello": ["there"]}`
+become `{"hello": ["there","world"]}`).  This isn't a perfect solution, as it would prevent
+users from treating the order of annotations as meaningful, but that may be for the best.
+They were never intended to be meaninfully ordered, and this same kind of summing already
+happens elsewhere.
 
 
 ##### Role Overrides
 
 Role overrides are very tricky.  The existing system allows approvers to override the list of
-roles to be granted by an access request (specifically, approvers can subselect, they cannot add
-roles which were not present).  How this should map to thresholded approvls in incluser.  Say that
-`dave` requests roles `foo`, `bar`, and `bin` with an approval threshold of `2`.  `bob` approves
-`foo` and `bar`, and `alice` approves `bar` and `bin`.  The approval threshold has been reached,
-but what roles should be granted? Technically, only `bar` reached the threshold.  It may seem
-reasonable to only grant `bar`, since `bob`'s approval effectively denied `bin` and `alice`'s
-approval effectively denied `foo`, but what if `carol` also submitted an approval for all 3?
+roles granted by an access request (specifically, approvers can subselect, they cannot add
+roles which are not present).  How this should map to thresholded approvals is unclear.
+
+Say that `dave` requests roles `["foo","bar","bin"]` with an approval threshold of `2`.
+If `bob` approves with override `["foo","bar"]`, and `alice` approves with override `["bar","bin"]`,
+what happens? The approval threshold has been reached but, in a sense, only `bar` actually reached
+the threshold. It may seem reasonable to only grant `bar`, since `bob`'s approval effectively denied
+`bin` and  `alice`'s approval effectively denied `foo`, but that is only in the case where
+there are only two people *trying* to approve. 
+
+What if `carol` also submits an approval with no override (equivalent to `["foo","bar","bin"]`)
+at the same time that `alice` and `bob` are submitting their approvals?
 Since the approval threshold is `2`, we are now racing to decide what the role subselection
 will be, as one of the three approvals will not be present at the time when the final role
-list is calculated, but any particular combination of approvals results in a different outcome.
-We could treat this case as out of scope, after all approvals can already race within the single-approver model.
+list is calculated.  Any particular combination of three approvals results in a different outcome:
+
+```
+{
+  "roles": ["???"],
+  "state": "???",
+  "approval_threshold": 2,
+  "proposals": [
+    {
+      "state": "APPROVED",
+      "user": "bob",
+      "roles": ["foo", "bar"],
+      ...
+    },
+    {
+      "state": "APPROVED",
+      "user": "alice",
+      "roles": ["bar", "bin"],
+      ...
+    },
+    {
+      "state": "APPROVED",
+      "user": "carol",
+      "roles": ["foo","bar","bin"],
+      ...
+    }
+  ],
+  ...
+}
+```
+
+We could treat this case as out of scope.  After all, approvals can already race within the single-approver model.
 The single-approver model, however, was explicitly built for the purposes of control by automated
 software or by a small team of well-coordinated admins.  Ideally, multi-party approval should
-be more resilient to multiple possibly out of sync parties.
+be more resilient to multiple parties.
 
 A partial solution to this conundrum is to tally proposals individually based on the state
 they would resolve to (i.e. an approval for a specific set of roles counts only towards a final
@@ -148,23 +187,24 @@ three separate possible outcomes.  Each possible outcome only has one supporting
 to meet the threshold of `2`.  This doesn't elminate the possibility of nondeterminism due to ordering
 (after all, 4 people voting for two possible states still results in a race), but it does ensure
 that no `APPROVED` state is reached that wasn't exactly supported by the requisite number of
-approvals (and does eliminate raciness and ambiguity so long as less than 2x threshold proposals
-are received).
+approvals.  Whether this is better than simply disabling the role override feature in the
+context of multiple approvals is questionable.
  
 
 #### Partial Permission Overlap
 
 Since users will now be able to approve access to some roles and not others, a new question
-arises.  Can users approve a request for a subset they are allowed to approve access to, if
-the original request contained roles that the user was not allowed to approve?  Say, for example,
-that `alice` is allowed to approve `staging`, but not `prod`.  `bob` requests access to both `staging`
-*and* `prod`.  Can `alice` approve the request but just for `staging`?  She obviously can't approve
-it for `prod`, but she is allowed to approve for `staging`.  If so, can she *deny* the request?
-It would be strange to have someone with no explicit permissions allowing them to control access
-to `prod` be able to indirectly deny it.  On the other hand, if a given user is allowed to control
-acces to a role, it seems equally strange to have them be powerless to deny access to the role
-because of the presence of an unrelated role within the request (one that might not even make it
-into the final approved state).
+arises.  Should an approver's permissions be calculated based on the roles originally requested, or
+the roles that the approver subselects to?
+
+Say, for example, that `alice` is allowed to approve `staging`, but not `prod`.   If `bob` generates
+a request for `staging` *and* `prod`, can `alice` approve the request if she subselects to just
+`staging`? She obviously can't approve for `prod`, but granting `bob` access to `staging` is within her
+power.  If so, can she *deny* the request?  It would be strange to have someone with no explicit
+permissions allowing them to control access to `prod` be able to indirectly deny it.  On the other
+hand, if a given user is allowed to control acces to a role, it seems equally strange to have them
+be powerless to deny access to the role because of the presence of an unrelated role within the
+request.
 
 As discussed above, we *could* choose to treat proposals as relating only to the exact outcome
 they describe.  In the above discussion, however, we were treating approvals as being strictly
@@ -174,14 +214,16 @@ to `["staging","prod"]`.  That feels wrong too.  One possible resolution is to s
 inconsistency here and treat denials as being for all permutations which include the specified
 roles, while approvals are for the exact permutation specified.
 
+
 ### Notes
 
 - In the interest of simplicity, we won't bother supporting custom denial thresholds.  Instead,
 any authorized approver may also deny, and 1 denial is always sufficient to deny the entire
-request.
+request (at least outside of the questionable scenarios discussed above).
 
 - An exception should be added to prevent users from approving their own requests.  Just a good
 footgun to avoid.
+
 
 ### Future Work
 
