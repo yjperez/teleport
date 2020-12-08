@@ -31,6 +31,7 @@ func main() {
 		&common.TopCommand{},
 		&common.AccessRequestCommand{},
 		&common.AppsCommand{},
+		&common.GraphCommand{},
 	}
 	common.Run(commands, nil)
 }
