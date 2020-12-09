@@ -15,7 +15,7 @@ KUBECONFIG ?=
 TEST_KUBE ?=
 
 OS ?= linux
-ARCH ?= amd64
+ARCH ?= $(shell go env GOARCH)
 RUNTIME ?= go1.15.5
 
 UID ?= $$(id -u)
@@ -25,6 +25,12 @@ BUILDBOX=quay.io/gravitational/teleport-buildbox:$(RUNTIME)
 BUILDBOXFIPS=quay.io/gravitational/teleport-buildbox-fips:$(RUNTIME)
 BUILDBOXCENTOS6=quay.io/gravitational/teleport-buildbox-centos6:$(RUNTIME)
 BUILDBOXCENTOS6FIPS=quay.io/gravitational/teleport-buildbox-centos6-fips:$(RUNTIME)
+
+# conditionally select Dockerfile name based on arch
+DOCKERFILE_PREFIX=Dockerfile
+ifeq ("$(ARCH)","arm64")
+DOCKERFILE_PREFIX=Dockerfile-arm64
+endif
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -85,7 +91,8 @@ buildbox:
 		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOX) \
-		--tag $(BUILDBOX) .
+		--tag $(BUILDBOX) \
+		--file $(DOCKERFILE_PREFIX) .
 
 #
 # Builds a Docker buildbox for FIPS
@@ -97,7 +104,8 @@ buildbox-fips:
 		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOXFIPS) \
-		--tag $(BUILDBOXFIPS) -f Dockerfile-fips .
+		--tag $(BUILDBOXFIPS) \
+		--file $(DOCKERFILE_PREFIX)-fips .
 
 #
 # Builds a Docker container for CentOS 6 builds
@@ -109,7 +117,9 @@ buildbox-centos6:
 		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOXCENTOS6) \
-		--tag $(BUILDBOXCENTOS6) -f Dockerfile-centos6 .
+		--tag $(BUILDBOXCENTOS6) \
+		--file Dockerfile-centos6 \
+		.
 
 #
 # Builds a Docker buildbox for CentOS 6 FIPS builds
@@ -121,7 +131,8 @@ buildbox-centos6-fips:
 		--build-arg GID=$(GID) \
 		--build-arg RUNTIME=$(RUNTIME) \
 		--cache-from $(BUILDBOXCENTOS6FIPS) \
-		--tag $(BUILDBOXCENTOS6FIPS) -f Dockerfile-centos6-fips .
+		--tag $(BUILDBOXCENTOS6FIPS) \
+		-file Dockerfile-centos6-fips .
 
 #
 # Builds a Docker container for building mkdocs documentation
