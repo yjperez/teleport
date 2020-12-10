@@ -1021,7 +1021,9 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 			log.Warningf("Encountered identity with no expiry: %v and denied request. Must be internal logic error.", a.context.Identity)
 			return nil, trace.AccessDenied("access denied")
 		}
-		req.Expires = expires
+		if req.Expires.After(expires) {
+			req.Expires = expires
+		}
 		if req.Expires.Before(a.authServer.GetClock().Now()) {
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
 		}

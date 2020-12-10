@@ -67,6 +67,7 @@ type LocalKeyStore interface {
 	// AddKey adds the given session key for the proxy and username to the
 	// storage backend.
 	AddKey(proxy string, username string, key *Key) error
+	AddKubeCerts(proxy string, username string, key *Key) error
 
 	// GetKey returns the session key for the given username and proxy.
 	GetKey(proxy, username string, opts ...KeyOption) (*Key, error)
@@ -172,7 +173,22 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 	if err = writeBytes(username, key.Priv); err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(awly): unit test this.
+	return fs.AddKubeCerts(host, username, key)
+}
+
+func (fs *FSLocalKeyStore) AddKubeCerts(host, username string, key *Key) error {
+	dirPath, err := fs.dirFor(host, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	writeBytes := func(fname string, data []byte) error {
+		fp := filepath.Join(dirPath, fname)
+		err := ioutil.WriteFile(fp, data, keyFilePerms)
+		if err != nil {
+			fs.log.Error(err)
+		}
+		return err
+	}
 	kubeDir := filepath.Join(dirPath, username+kubeDirSuffix, key.ClusterName)
 	// Clean up any old kube certs.
 	if err := os.RemoveAll(kubeDir); err != nil {

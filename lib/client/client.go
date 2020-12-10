@@ -157,28 +157,28 @@ type ReissueParams struct {
 
 // ReissueUserCerts generates certificates for the user
 // that have a metadata instructing server to route the requests to the cluster
-func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) (*Key, error) {
 	localAgent := proxy.teleportClient.LocalAgent()
 	key, err := localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	cert, err := key.SSHCert()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rootClusterName, err := tlsca.ClusterName(tlsCert.Issuer)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	clt, err := proxy.ConnectToCluster(ctx, rootClusterName, true)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if params.RouteToCluster != "" {
@@ -188,7 +188,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 			DomainName: params.RouteToCluster,
 		}, false)
 		if err != nil {
-			return trace.NotFound("cluster %v not found", params.RouteToCluster)
+			return nil, trace.NotFound("cluster %v not found", params.RouteToCluster)
 		}
 	}
 	req := proto.UserCertsRequest{
@@ -205,7 +205,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 
 	certs, err := proxy.generateUserCerts2(ctx, clt, &req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	key.Cert = certs.SSH
 	key.TLSCert = certs.TLS
@@ -213,9 +213,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
 	}
 
-	// save the cert to the local storage (~/.tsh usually):
-	_, err = localAgent.AddKey(key)
-	return trace.Wrap(err)
+	return key, nil
 }
 
 func (proxy *ProxyClient) generateUserCerts2(ctx context.Context, clt auth.ClientI, req *proto.UserCertsRequest) (*proto.Certs, error) {

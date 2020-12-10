@@ -530,11 +530,14 @@ func onLogin(cf *CLIConf) {
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
 			// trigger reissue, preserving any active requests.
-			err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+			key, err := tc.ReissueUserCerts(cf.Context, client.ReissueParams{
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 				RouteToCluster: cf.SiteName,
 			})
 			if err != nil {
+				utils.FatalError(err)
+			}
+			if _, err := tc.LocalAgent().AddKey(key); err != nil {
 				utils.FatalError(err)
 			}
 			if err := tc.SaveProfile("", true); err != nil {
@@ -1657,7 +1660,11 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = profile.Cluster
 	}
-	if err := tc.ReissueUserCerts(cf.Context, params); err != nil {
+	key, err := tc.ReissueUserCerts(cf.Context, params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := tc.LocalAgent().AddKey(key); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := tc.SaveProfile("", true); err != nil {

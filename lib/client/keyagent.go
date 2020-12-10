@@ -417,6 +417,9 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 	// load key into the teleport agent and system agent
 	return a.LoadKey(*key)
 }
+func (a *LocalKeyAgent) AddKubeCerts(key *Key) error {
+	return a.keyStore.AddKubeCerts(a.proxyHost, a.username, key)
+}
 
 // DeleteKey removes the key from the key store as well as unloading the key
 // from the agent.

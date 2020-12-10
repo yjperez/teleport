@@ -314,6 +314,10 @@ func (g *GRPCServer) GenerateUserCerts2(stream proto.AuthService_GenerateUserCer
 		return trail.ToGRPC(err)
 	}
 
+	maxExpiry := g.AuthServer.clock.Now().Add(5 * time.Minute)
+	if req.Expires.After(maxExpiry) {
+		req.Expires = maxExpiry
+	}
 	certs, err := auth.ServerWithRoles.GenerateUserCerts(stream.Context(), *req)
 	if err != nil {
 		return trail.ToGRPC(err)

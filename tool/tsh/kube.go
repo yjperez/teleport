@@ -98,20 +98,16 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 
 	log.Debugf("Requesting TLS cert for kubernetes cluster %q", c.kubeCluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.ReissueUserCerts(cf.Context, client.ReissueParams{
+		k, err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
 		})
+		return err
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// ReissueUserCerts should cache the new cert on disk, re-read them.
-	k, err = tc.LocalAgent().GetKey(client.WithKubeCerts(c.teleportCluster))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	tc.LocalAgent().AddKubeCerts(k)
 
 	return c.writeResponse(k, c.kubeCluster)
 }

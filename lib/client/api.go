@@ -902,10 +902,10 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 	return retval, nil
 }
 
-func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
+func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) (*Key, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
@@ -2294,7 +2294,7 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP() (token string, err error) {
-	fmt.Printf("Enter your OTP token:\n")
+	fmt.Fprintf(os.Stderr, "Enter your OTP token:\n")
 	token, err = lineFromConsole()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
@@ -2305,7 +2305,7 @@ func (tc *TeleportClient) AskOTP() (token string, err error) {
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword() (pwd string, err error) {
-	fmt.Printf("Enter password for Teleport user %v:\n", tc.Config.Username)
+	fmt.Fprintf(os.Stderr, "Enter password for Teleport user %v:\n", tc.Config.Username)
 	pwd, err = passwordFromConsole()
 	if err != nil {
 		fmt.Fprintln(tc.Stderr, err)
