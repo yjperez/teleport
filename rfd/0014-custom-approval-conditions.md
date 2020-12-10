@@ -104,11 +104,11 @@ When the second approval arrives, the auth server can automatically detect that 
 condition (a threshold of 2) has been met, and transition the request from the `PENDING` to
 the `APPROVED` state.
 
-#### Advanced Approval Conditions
+#### Advanced Approval Thresholds
 
 Assuming we cached additional information about approvers beyond just username (e.g. username,
-roles, and traits), then we could support some pretty interesting custom approval conditions.
-One possible scenario would be to allow the approval condition to be defined similar to a
+roles, and traits), then we could support some pretty interesting custom approval thresholds.
+One possible scenario would be to allow the threshold to be defined similar to a
 `where` clause as used elsewhere in the RBAC system. Ex:
 
 ```yaml
@@ -118,13 +118,14 @@ spec:
   allow:
     request:
       # approved if two total approvals, or one approval from and admin
-      approval_condition: 'approval_count() >= 2 || approvals_with_trait("team","admins") >= 1'
+      approval_threshold: 'approval_count() >= 2 || approvals_with_trait("team","admins") >= 1'
 ```
 
 The expression language used in `where` clauses is useful, but it becomes cumbersome when
-dealing with complex things like lists of objects. Another option would be to define an
-array of approval *filters* with separate thresholds.  While more restrictive, this may
-cover 99% of cases in a manner that is both simpler and easier to reason about:
+dealing with complex things like lists of objects (hence clunky custom functions like
+`approvals_with_trait()`). Another option would be to define an array of more explicit
+thresholds with an optional per-propoals filter.  While more restrictive, this may cover
+99% of cases in a manner that is both simpler and easier to reason about:
 
 ```yaml
 kind: role
@@ -132,15 +133,15 @@ kind: role
 spec:
   allow:
     request:
-      approval_conditions:
+      approval_thresholds:
       - name: One admin # name for use in logs
         filter: 'contains(approver.traits["teams"], "admin")' # predicate for matching proposals
-        threshold: 1 # number of matching proposals to trigger condition
+        count: 1 # number of matching proposals to trigger condition
       - name: Two developers
         filter: 'contains(approver.traits["teams"],"dev") || contains(approver.roles, "dev")'
-        threshold: 2
+        count: 2
       - name: Three from anyone
-        threshold: 3
+        count: 3
 ```
 
 *NOTE*: Because the roles that a user is allowed to request are defined as a "sum" of
