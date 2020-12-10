@@ -1687,6 +1687,14 @@ func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsReque
 	return certs, nil
 }
 
+func (c *Client) GenerateUserCerts2(ctx context.Context, opts ...grpc.CallOption) (proto.AuthService_GenerateUserCerts2Client, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return clt.GenerateUserCerts2(ctx, opts...)
+}
+
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
 func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
 	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
@@ -3334,6 +3342,8 @@ type IdentityService interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+
+	GenerateUserCerts2(ctx context.Context, opts ...grpc.CallOption) (proto.AuthService_GenerateUserCerts2Client, error)
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error

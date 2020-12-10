@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"io"
 	"net"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/tstranex/u2f"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace"
@@ -279,6 +281,69 @@ func (g *GRPCServer) UpsertNode(ctx context.Context, server *services.ServerV2) 
 		return nil, trail.ToGRPC(err)
 	}
 	return keepAlive, nil
+}
+
+func (g *GRPCServer) GenerateUserCerts2(stream proto.AuthService_GenerateUserCerts2Server) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	u2fReg, challenge, err := auth.authServer.newU2FChallenge(auth.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	u2fSignReq := challenge.SignRequest(*u2fReg)
+	u2fSignReqEnc, err := json.Marshal(u2fSignReq)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	if err := stream.Send(&proto.UserCertsResponse{U2FChallenge: u2fSignReqEnc}); err != nil {
+		return trail.ToGRPC(err)
+	}
+	req, err := stream.Recv()
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	var u2fSignResp u2f.SignResponse
+	if err := json.Unmarshal(req.U2FChallengeResponse, &u2fSignResp); err != nil {
+		return trail.ToGRPC(err)
+	}
+	// TODO: handle counter.
+	if _, err := u2fReg.Authenticate(u2fSignResp, *challenge, 0); err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	certs, err := auth.ServerWithRoles.GenerateUserCerts(stream.Context(), *req)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	if err := stream.Send(&proto.UserCertsResponse{Certs: certs}); err != nil {
+		return trail.ToGRPC(err)
+	}
+	return nil
+}
+
+func (s *Server) newU2FChallenge(ctx *Context) (*u2f.Registration, *u2f.Challenge, error) {
+	cap, err := s.GetAuthPreference()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	u2fConfig, err := cap.GetU2F()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	registration, err := s.GetU2FRegistration(ctx.User.GetName())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	challenge, err := u2f.NewChallenge(u2fConfig.AppID, u2fConfig.Facets)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return registration, challenge, nil
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCertsRequest) (*proto.Certs, error) {

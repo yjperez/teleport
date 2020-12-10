@@ -102,6 +102,11 @@ message Certs {
     bytes TLS = 2 [ (gogoproto.jsontag) = "tls,omitempty" ];
 }
 
+message UserCertsResponse {
+    Certs certs = 1;
+    bytes u2f_challenge = 2;
+}
+
 // UserCertRequest specifies certificate-generation parameters
 // for a user.
 message UserCertsRequest {
@@ -131,6 +136,8 @@ message UserCertsRequest {
     // KubernetesCluster specifies the target kubernetes cluster for TLS
     // identities. This can be empty on older Teleport clients.
     string KubernetesCluster = 7 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+
+    bytes u2f_challenge_response = 8;
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -403,6 +410,7 @@ service AuthService {
     // GenerateUserCerts generates a set of user certificates for use by `tctl
     // auth sign`.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
+    rpc GenerateUserCerts2(stream UserCertsRequest) returns (stream UserCertsResponse);
     // GetUser gets a user resource by name.
     rpc GetUser(GetUserRequest) returns (services.UserV2);
     // GetUsers gets all current user resources.

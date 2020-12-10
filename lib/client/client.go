@@ -19,10 +19,14 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -42,7 +46,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
 
+	"github.com/flynn/u2f/u2fhid"
+	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/trace"
+	"github.com/tstranex/u2f"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
@@ -196,7 +203,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 		req.Format = teleport.CertificateFormatOldSSH
 	}
 
-	certs, err := clt.GenerateUserCerts(ctx, req)
+	certs, err := proxy.generateUserCerts2(ctx, clt, &req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -209,6 +216,97 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	// save the cert to the local storage (~/.tsh usually):
 	_, err = localAgent.AddKey(key)
 	return trace.Wrap(err)
+}
+
+func (proxy *ProxyClient) generateUserCerts2(ctx context.Context, clt auth.ClientI, req *proto.UserCertsRequest) (*proto.Certs, error) {
+	stream, err := clt.GenerateUserCerts2(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer stream.CloseSend()
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var u2fSignReq u2f.SignRequest
+	if err := json.Unmarshal(resp.U2FChallenge, &u2fSignReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	devs, err := u2fhid.Devices()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(devs) == 0 {
+		return nil, fmt.Errorf("no u2f devices found")
+	}
+	dev, err := u2fhid.Open(devs[0])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tok := u2ftoken.NewToken(dev)
+
+	origU2FKeyHandle := u2fSignReq.KeyHandle
+	// Fix the broken u2f base64 encoding...
+	for i := 0; i < len(u2fSignReq.KeyHandle)%4; i++ {
+		u2fSignReq.KeyHandle += "="
+	}
+	keyHandle, err := base64.URLEncoding.DecodeString(u2fSignReq.KeyHandle)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Application must be a sha-256 hash of the application name, not the raw
+	// string.
+	appIDHash := sha256.Sum256([]byte(u2fSignReq.AppID))
+	clientData, err := json.Marshal(u2f.ClientData{
+		Challenge: u2fSignReq.Challenge,
+		Origin:    u2fSignReq.AppID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling ClientData: %w", err)
+	}
+	clientDataHash := sha256.Sum256(clientData)
+	authReq := u2ftoken.AuthenticateRequest{
+		Challenge:   clientDataHash[:],
+		KeyHandle:   keyHandle,
+		Application: appIDHash[:],
+	}
+	fmt.Fprintln(os.Stderr, "tap your security key...")
+	start := time.Now()
+	var authResp *u2ftoken.AuthenticateResponse
+	for time.Since(start) < 10*time.Second {
+		authResp, err = tok.Authenticate(authReq)
+		if err != nil {
+			if err == u2ftoken.ErrPresenceRequired {
+				time.Sleep(200 * time.Millisecond)
+				continue
+			}
+			return nil, fmt.Errorf("tok.Authenticate error: %w", err)
+		}
+		break
+	}
+	if authResp == nil {
+		return nil, trace.AccessDenied("timed out waiting for security key tap")
+	}
+
+	u2fSignResp := u2f.SignResponse{
+		KeyHandle:     origU2FKeyHandle,
+		SignatureData: base64.URLEncoding.EncodeToString(authResp.RawResponse),
+		ClientData:    base64.URLEncoding.EncodeToString(clientData),
+	}
+
+	req.U2FChallengeResponse, err = json.Marshal(u2fSignResp)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling SignResponse: %w", err)
+	}
+	if err := stream.Send(req); err != nil {
+		return nil, fmt.Errorf("error sending gRPC response: %w", err)
+	}
+	resp, err = stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("error reading gRPC response: %w", err)
+	}
+	return resp.Certs, nil
 }
 
 // RootClusterName returns name of the current cluster

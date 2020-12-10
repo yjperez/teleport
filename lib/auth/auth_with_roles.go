@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/wrappers"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/trace"
 
@@ -1122,6 +1123,9 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 		SSH: certs.ssh,
 		TLS: certs.tls,
 	}, nil
+}
+func (a *ServerWithRoles) GenerateUserCerts2(ctx context.Context, opts ...grpc.CallOption) (proto.AuthService_GenerateUserCerts2Client, error) {
+	return nil, trace.NotImplemented("GenerateUserCerts2 not implemented on ServerWithRoles")
 }
 
 func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
