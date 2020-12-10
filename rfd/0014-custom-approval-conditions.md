@@ -42,10 +42,12 @@ for `admin`).
 
 ### Proposition
 
+#### Model
+
 Rather than simple write operations that are either always or never allowed, the new model
-will be based on the idea of "proposals".  Users with the correct permissions will be able
-to propose a state transition which does not come into effect until the propoals hit a
-threshold specified by the `access_request` resource.
+will revolve around *proposals* and *approval thresholds*.  Users with the correct permissions
+will be able to propose a state transition which does not come into effect until a specified
+threshold (e.g. reaching a certain number of approvals) is reached.
 
 Say that `carol` has role `intern` and `alice` and `bob` both hold role `dev`.  We want
 `carol` to be able to temporarily use role `staging` if both `alice` and `bob` approve of
@@ -98,10 +100,102 @@ not be updated since the request has not yet met its approval threshold.  Ex:
 }
 ```
 
-When the second approval arrives, the auth server will automatically be able to evalute that the
-approval threshold has been met, and transition the request from the `PENDING` to the `APPROVED`
-state.
+When the second approval arrives, the auth server can automatically detect that the approval
+condition (a threshold of 2) has been met, and transition the request from the `PENDING` to
+the `APPROVED` state.
 
+#### Advanced Approval Conditions
+
+Assuming we cached additional information about approvers beyond just username (e.g. username,
+roles, and traits), then we could support some pretty interesting custom approval conditions.
+One possible scenario would be to allow the approval condition to be defined similar to a
+`where` clause as used elsewhere in the RBAC system. Ex:
+
+```yaml
+kind: role
+# ...
+spec:
+  allow:
+    request:
+      # approved if two total approvals, or one approval from and admin
+      approval_condition: 'approval_count() >= 2 || approvals_with_trait("team","admins") >= 1'
+```
+
+The expression language used in `where` clauses is useful, but it becomes cumbersome when
+dealing with complex things like lists of objects. Another option would be to define an
+array of approval *filters* with separate thresholds.  While more restrictive, this may
+cover 99% of cases in a manner that is both simpler and easier to reason about:
+
+```yaml
+kind: role
+# ...
+spec:
+  allow:
+    request:
+      approval_conditions:
+      - name: One admin # name for use in logs
+        filter: 'contains(approver.traits["teams"], "admin")' # predicate for matching proposals
+        threshold: 1 # number of matching proposals to trigger condition
+      - name: Two developers
+        filter: 'contains(approver.traits["teams"],"dev") || contains(approver.roles, "dev")'
+        threshold: 2
+      - name: Three from anyone
+        threshold: 3
+```
+
+*NOTE*: Because the roles that a user is allowed to request are defined as a "sum" of
+the `allow.request` blocks across all of their statically assigned roles, unifying
+custom approval conditions of any kind will be tricky.  More so because some roles with
+different approval conditions may have overlap in terms of what roles they deem
+requestable.  Basically, each *requested* role is going to need at least one
+matching condition to pass from the set of *static* roles that permit it to be
+requested.  This state is going to need to be tracked within the access request itself,
+and will likely make it impossible to cleanly display to the user exactly what conditions
+need to be met in order for their request to be approved.
+
+
+#### Reviewers
+
+With more users being potentially eligible to approve requests, it may become necessary to
+provide hits for who should be reviewing a given request.  While it isn't feasible to
+direcly notify a user via teleport (non-static users are lazily created on login), that
+doesn't stop us from supporting a loose concept of *suggested* reviewers.
+
+When a user generates an access request, we can accept a list of arbitrary strings identiying
+suggested reviewers:
+
+```
+$ tsh login --request-roles=dictator --request-reviewers=alice@example.com
+```
+
+Rather than requiring `alice` and `bob` to be existing teleport users, we can simply store
+the strings alongside the request.  This will allow `tctl` and the Web UI to filter requests
+by arbitrary reviewer strings (including the name of the currently logged in user if
+applicable).  Ex:
+
+```
+$ tctl request ls --wants-review-from=alice@example.com
+# ...
+```
+
+Simultaneously, plugin implementations may use this field in other ways.  A slack plugin,
+for example, could DM each slack user whose name appeared in the suggested reviewers
+list, providing a link to the request within the Web UI.  Since the request ID is opaque,
+we don't actually need to verify any permissions until the link is clicked and the
+potential reviewer authenticates with teleport.
+
+If manually listing reviewers ends up being tedious, it would also be feasible to hard-code
+suggested reviewers within an `allow.request` block like so:
+
+```yaml
+kind: role
+# ...
+spec:
+  allow:
+    request:
+      suggested_reviewers: ["alice@example.com", "bob@example.com"]
+      # ...
+```
 
 #### Supporting Extended Options
 
