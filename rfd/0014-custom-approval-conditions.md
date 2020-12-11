@@ -72,9 +72,9 @@ spec:
   allow:
     request:
       roles: ['staging']
-      # new configuration option requiring a minimum of two approving
-      # proposals before the request actually becomes approved.
-      min_approvals: 2 
+      # a hypothetical configuration option stating that two approvals are
+      # required for the overall request to be considered approved.
+      approval_threshold: 2
 ```
 
 When `carol` generates her access request, the RBAC layer will automatically determine that
@@ -106,10 +106,13 @@ the `APPROVED` state.
 
 #### Advanced Approval Thresholds
 
-Assuming we cached additional information about approvers beyond just username (e.g. username,
-roles, and traits), then we could support some pretty interesting custom approval thresholds.
-One possible scenario would be to allow the threshold to be defined similar to a
-`where` clause as used elsewhere in the RBAC system. Ex:
+Borrowing from the existing pattern of `where` clauses used by resource rules, we can
+extend the idea of approval thresholds to something far more granular.
+
+The predicate language used in `where` clauses is cumbersome when dealing with complex
+data.  Luckily, we can simplify it significantly by limiting the scope of predicates to
+match single proposals.  Take this example which describes different thresholds for
+different proposals depending on the traits provided by external identity providers:
 
 ```yaml
 kind: role
@@ -117,15 +120,22 @@ kind: role
 spec:
   allow:
     request:
-      # approved if two total approvals, or one approval from and admin
-      approval_threshold: 'approval_count() >= 2 || approvals_with_trait("team","admins") >= 1'
+      thresholds:
+      - name: Administrative control
+        filter: 'contains(proposal.user.traits["teams"], "admin")'
+        approve: 2
+        deny: 1
+      - name: Developer control
+        filter: 'contains(proposal.user.traits["teams"],"dev") || contains(proposal.user.roles, "dev")'
+        approve: 2
+        deny: 1
+      - name: Let the commonfolk decide
+        approve: 4
+      # ...
 ```
 
-The expression language used in `where` clauses is useful, but it becomes cumbersome when
-dealing with complex things like lists of objects (hence clunky custom functions like
-`approvals_with_trait()`). Another option would be to define an array of more explicit
-thresholds with an optional per-propoals filter.  While more restrictive, this may cover
-99% of cases in a manner that is both simpler and easier to reason about:
+Within the above framework, we can model the current default behavior of access requests
+(applying the first proposal immmediately) like so:
 
 ```yaml
 kind: role
@@ -133,15 +143,10 @@ kind: role
 spec:
   allow:
     request:
-      approval_thresholds:
-      - name: One admin # name for use in logs
-        filter: 'contains(approver.traits["teams"], "admin")' # predicate for matching proposals
-        count: 1 # number of matching proposals to trigger condition
-      - name: Two developers
-        filter: 'contains(approver.traits["teams"],"dev") || contains(approver.roles, "dev")'
-        count: 2
-      - name: Three from anyone
-        count: 3
+      thresholds:
+      - name: Default
+        approve: 1
+        deny: 1
 ```
 
 *NOTE*: Because the roles that a user is allowed to request are defined as a "sum" of
@@ -154,6 +159,42 @@ requested.  This state is going to need to be tracked within the access request 
 and will likely make it impossible to cleanly display to the user exactly what conditions
 need to be met in order for their request to be approved.
 
+
+#### Advanced Approval Permissions
+
+The concept of the `allow.approve` block can very naturally be extended to support
+more granular definitions of approvable roles.  Ex: 
+
+```yaml
+kind: role
+# ...
+spec:
+  allow:
+    approve:
+      roles: ['*-staging']
+      claims_to_roles:
+        - claim: teams
+          value: admin
+          roles: ['*-prod']
+      where: 'contains(request.system_annotations["teams"],"red")'
+    # ...
+```
+
+Note that we are using the request's `system_annotations` attribute in order to indirectly
+operate on a trait, rather than operating directly on the requesting user's traits.  This
+is intended to ensure that traits of requesting users are not inadvertently exposed to
+other users.  See the the 'User Data Leakage' discussion below for more info.
+
+In general, what the above configuration allows us to do, is to construct a "matcher" which
+allow us to answer the question "can user `X` serve as an approver for request `Y`" based
+solely on the initial state of request `Y` and the current auth context of user `X`.
+Note that just because the roles of user say that they can theoretically be an approver,
+does not mean that they are capable of triggering any of the custom thresholds defined
+in the request.  This is OK, and we will allow them to submit a proposal anyhow.  The
+question of what triggers a state-transition is separate.  In fact, it need to be answerable
+by teleport.  It is acceptable for the request to never automatically state-transition,
+and instead rely on an external plugin which monitors proposals and forcibly updates
+state once whatever conditions that plugin cares about happen to be met.
 
 #### Reviewers
 
@@ -310,18 +351,28 @@ inconsistency here and treat denials as being for all permutations which include
 roles, while approvals are for the exact permutation specified.
 
 
-### Notes
+#### User Data Leakage
 
-- In the interest of simplicity, we won't bother supporting custom denial thresholds.  Instead,
-any authorized approver may also deny, and 1 denial is always sufficient to deny the entire
-request (at least outside of the questionable scenarios discussed above).
+Special care will need to be taken to ensure that we have a clear, and difficult to misuse,
+model of what information can be leaked about request generators or approvers.
+
+Some "leaks" are obvious and intentional (e.g. if only role `foo` grants the ability to request
+role `dev`, then anyone with the ability to *approve* role `dev` is going to be able to get a
+pretty good idea of who in te system holds role `foo`).
+
+Some potential leaks are less obvious.  If we were to expose a requestor's traits within the namespace
+of a `thresholds[].filter` predicate, then a carelessly written predicate might allow approvers
+to brute-force the contents of some of the requestors traits (e.g. if for some reason traits were
+being compared to an input which the approver controlled, such as annotations).
+
+Generally, this means that we need to avoid providing the ability for arbitrary strings provided
+by one party, to be compared with structed permission data assoicated with another party.
+
+Furthermore, this rules out providing the ability for a requestor to query teleport and ask "who
+can approve this request" unless the requestor holds `read` and `list` permissions for
+the `user` resource.
+
+### Notes
 
 - An exception should be added to prevent users from approving their own requests.  Just a good
 footgun to avoid.
-
-
-### Future Work
-
-- Look into supporting `where` clauses to give extra granularity to approval scopes, and possibly
-for approval thresholds as well (through the latter may have limited usefulness since user traits
-likely wouldn't be in-scope).
