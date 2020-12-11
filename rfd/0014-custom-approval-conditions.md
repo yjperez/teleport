@@ -45,7 +45,7 @@ for `admin`).
 #### Model
 
 Rather than simple write operations that are either always or never allowed, the new model
-will revolve around *proposals* and *approval thresholds*.  Users with the correct permissions
+will revolve around *reviews* and *approval thresholds*.  Users with the correct permissions
 will be able to propose a state transition which does not come into effect until a specified
 threshold (e.g. reaching a certain number of approvals) is reached.
 
@@ -59,9 +59,9 @@ metadata:
   name: dev
 spec:
   allow:
-    # new configuration option permitting access request approval for
-    # certain specific roles.
-    approve:
+    # new configuration option permitting review of access requests
+    # that meet 
+    review_requests:
       roles: ['staging']
     # ...
 ---
@@ -88,7 +88,7 @@ not be updated since the request has not yet met its approval threshold.  Ex:
 {
   "state": "PENDING",
   "approval_threshold": 2,
-  "proposals": [
+  "reviews": [
     {
       "state": "APPROVED",
       "user": "alice",
@@ -111,8 +111,8 @@ extend the idea of approval thresholds to something far more granular.
 
 The predicate language used in `where` clauses is cumbersome when dealing with complex
 data.  Luckily, we can simplify it significantly by limiting the scope of predicates to
-match single proposals.  Take this example which describes different thresholds for
-different proposals depending on the traits provided by external identity providers:
+match single reviews.  Take this example which describes different thresholds for
+different reviews depending on the traits provided by external identity providers:
 
 ```yaml
 kind: role
@@ -122,11 +122,11 @@ spec:
     request:
       thresholds:
       - name: Administrative control
-        filter: 'contains(proposal.user.traits["teams"], "admin")'
-        approve: 2
+        filter: 'contains(reviewer.traits["teams"], "admin")'
+        approve: 1
         deny: 1
       - name: Developer control
-        filter: 'contains(proposal.user.traits["teams"],"dev") || contains(proposal.user.roles, "dev")'
+        filter: 'contains(reviewer.traits["teams"],"dev") || contains(reviewer.roles, "dev")'
         approve: 2
         deny: 1
       - name: Let the commonfolk decide
@@ -135,7 +135,7 @@ spec:
 ```
 
 Within the above framework, we can model the current default behavior of access requests
-(applying the first proposal immmediately) like so:
+(applying the first review immmediately) like so:
 
 ```yaml
 kind: role
@@ -162,7 +162,7 @@ need to be met in order for their request to be approved.
 
 #### Advanced Approval Permissions
 
-The concept of the `allow.approve` block can very naturally be extended to support
+The concept of the `allow.review_requests` block can very naturally be extended to support
 more granular definitions of approvable roles.  Ex: 
 
 ```yaml
@@ -170,7 +170,7 @@ kind: role
 # ...
 spec:
   allow:
-    approve:
+    review_requests:
       roles: ['*-staging']
       claims_to_roles:
         - claim: teams
@@ -188,18 +188,18 @@ other users.  See the the 'User Data Leakage' discussion below for more info.
 In general, what the above configuration allows us to do, is to construct a "matcher" which
 allow us to answer the question "can user `X` serve as an approver for request `Y`" based
 solely on the initial state of request `Y` and the current auth context of user `X`.
-Note that just because the roles of user say that they can theoretically be an approver,
+Note that just because the roles of a user say that they can theoretically be an approver,
 does not mean that they are capable of triggering any of the custom thresholds defined
-in the request.  This is OK, and we will allow them to submit a proposal anyhow.  The
-question of what triggers a state-transition is separate.  In fact, it need to be answerable
+in the request.  This is OK, and we will allow them to submit a review anyhow.  The
+question of what triggers a state-transition is separate.  In fact, it need not be answerable
 by teleport.  It is acceptable for the request to never automatically state-transition,
-and instead rely on an external plugin which monitors proposals and forcibly updates
+and instead rely on an external plugin which monitors reviews and forcibly updates
 state once whatever conditions that plugin cares about happen to be met.
 
 #### Reviewers
 
 With more users being potentially eligible to approve requests, it may become necessary to
-provide hits for who should be reviewing a given request.  While it isn't feasible to
+provide hints for who should be reviewing a given request.  While it isn't feasible to
 direcly notify a user via teleport (non-static users are lazily created on login), that
 doesn't stop us from supporting a loose concept of *suggested* reviewers.
 
@@ -250,12 +250,12 @@ system:
 ##### Annotations
 
 Calculating the `ResolveAnnotations` (annotations supplied upon approval/denial) of a request
-is a bit tricky.  If two proposals provide two different annotation mappings, do you pick one?
-Simply using the annotations from either the first or last proposal is problematic because that
+is a bit tricky.  If two reviews provide two different annotation mappings, do you pick one?
+Simply using the annotations from either the first or last review is problematic because that
 makes us very sensistive to ordering (potentially leading to very confusing bugs).
 
 Given that annotations are of the form `map[string][]string`, the annotations of all
-proposals could theoretically be "summed" (e.g. `{"hello": ["world"]}` and `{"hello": ["there"]}`
+reviews could theoretically be "summed" (e.g. `{"hello": ["world"]}` and `{"hello": ["there"]}`
 become `{"hello": ["there","world"]}`).  This isn't a perfect solution, as it would prevent
 users from treating the order of annotations as meaningful, but that may be for the best.
 They were never intended to be meaninfully ordered, and this same kind of summing already
@@ -286,7 +286,7 @@ list is calculated.  Any particular combination of three approvals results in a 
   "roles": ["???"],
   "state": "???",
   "approval_threshold": 2,
-  "proposals": [
+  "reviews": [
     {
       "state": "APPROVED",
       "user": "bob",
@@ -315,11 +315,11 @@ The single-approver model, however, was explicitly built for the purposes of con
 software or by a small team of well-coordinated admins.  Ideally, multi-party approval should
 be more resilient to multiple parties.
 
-A partial solution to this conundrum is to tally proposals individually based on the state
+A partial solution to this conundrum is to tally reviews individually based on the state
 they would resolve to (i.e. an approval for a specific set of roles counts only towards a final
 request state with that exact set of roles).  Taking this strategy, the access request in the above
 example would remain in a `PENDING` state because `alice`, `bob`, and `carol` effectively proposed
-three separate possible outcomes.  Each possible outcome only has one supporting proposal, failing
+three separate possible outcomes.  Each possible outcome only has one supporting review, failing
 to meet the threshold of `2`.  This doesn't elminate the possibility of nondeterminism due to ordering
 (after all, 4 people voting for two possible states still results in a race), but it does ensure
 that no `APPROVED` state is reached that wasn't exactly supported by the requisite number of
@@ -342,7 +342,7 @@ hand, if a given user is allowed to control acces to a role, it seems equally st
 be powerless to deny access to the role because of the presence of an unrelated role within the
 request.
 
-As discussed above, we *could* choose to treat proposals as relating only to the exact outcome
+As discussed above, we *could* choose to treat reviews as relating only to the exact outcome
 they describe.  In the above discussion, however, we were treating approvals as being strictly
 related to the *exact* set of roles they proposed (i.e. `["foo"]` has no relation to `["foo","bar"]`).
 If we take this route with denials, then denying access to `["staging"]` does not deny access
@@ -354,7 +354,7 @@ roles, while approvals are for the exact permutation specified.
 #### User Data Leakage
 
 Special care will need to be taken to ensure that we have a clear, and difficult to misuse,
-model of what information can be leaked about request generators or approvers.
+model of what information can be leaked about request generators or reviewers.
 
 Some "leaks" are obvious and intentional (e.g. if only role `foo` grants the ability to request
 role `dev`, then anyone with the ability to *approve* role `dev` is going to be able to get a
