@@ -18,6 +18,7 @@ package types
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
