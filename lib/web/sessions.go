@@ -97,6 +97,7 @@ func (c *SessionContext) Invalidate() error {
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
+	c.log.WithField("token", token).Info("Validate bearer token.")
 	_, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,

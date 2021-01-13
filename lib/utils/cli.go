@@ -52,8 +52,7 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 		// Otherwise discard all logs.
 		if level == log.DebugLevel {
 			log.SetFormatter(&trace.TextFormatter{
-				DisableTimestamp: true,
-				EnableColors:     trace.IsTerminal(os.Stderr),
+				EnableColors: trace.IsTerminal(os.Stderr),
 			})
 			log.SetOutput(os.Stderr)
 		} else {
@@ -61,8 +60,7 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 		}
 	case LoggingForDaemon:
 		log.SetFormatter(&trace.TextFormatter{
-			DisableTimestamp: true,
-			EnableColors:     trace.IsTerminal(os.Stderr),
+			EnableColors: trace.IsTerminal(os.Stderr),
 		})
 		log.SetOutput(os.Stderr)
 	}
@@ -102,8 +100,7 @@ func WrapLogger(logger *log.Entry) Logger {
 func NewLogger() *log.Logger {
 	logger := log.New()
 	logger.SetFormatter(&trace.TextFormatter{
-		DisableTimestamp: true,
-		EnableColors:     trace.IsTerminal(os.Stderr),
+		EnableColors: trace.IsTerminal(os.Stderr),
 	})
 	return logger
 }

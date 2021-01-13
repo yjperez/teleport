@@ -1437,6 +1437,7 @@ func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context)
 func (r *webSession) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
+		r.WithField("session-id", event.Resource.GetName()).Info("Delete web session.")
 		err := r.webSessionCache.Delete(ctx, types.DeleteWebSessionRequest{
 			SessionID: event.Resource.GetName(),
 		})
@@ -1454,6 +1455,7 @@ func (r *webSession) processEvent(ctx context.Context, event services.Event) err
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		r.setTTL(resource)
+		r.WithField("session", resource.String()).Info("Put web session.")
 		if err := r.webSessionCache.Upsert(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1502,6 +1504,7 @@ func (r *webToken) fetch(ctx context.Context) (apply func(ctx context.Context) e
 func (r *webToken) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
+		r.WithField("token", event.Resource.GetName()).Info("Delete web token.")
 		err := r.webTokenCache.Delete(ctx, types.DeleteWebTokenRequest{
 			Token: event.Resource.GetName(),
 		})
@@ -1519,6 +1522,7 @@ func (r *webToken) processEvent(ctx context.Context, event services.Event) error
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		r.setTTL(resource)
+		r.WithField("token", resource.String()).Info("Put web token.")
 		if err := r.webTokenCache.Upsert(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
