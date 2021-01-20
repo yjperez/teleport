@@ -403,11 +403,11 @@ func TestKeepAlives(t *testing.T) {
 	bk := newBackend(t)
 	defer bk.Close()
 
-	watcher := bk.newWatcher(t, context.TODO())
+	watcher := bk.newWatcher(context.TODO(), t)
 	defer watcher.Close()
 
 	expiresAt := addSeconds(bk.clock.Now(), 2)
-	item, lease := bk.addItem(t, context.TODO(), "key", "val1", expiresAt)
+	item, lease := bk.addItem(context.TODO(), t, "key", "val1", expiresAt)
 
 	bk.clock.Advance(1 * time.Second)
 
@@ -458,7 +458,7 @@ func newBackend(t *testing.T) pack {
 	}
 }
 
-func (r pack) addItem(t *testing.T, ctx context.Context, key, value string, expires time.Time) (backend.Item, backend.Lease) {
+func (r pack) addItem(ctx context.Context, t *testing.T, key, value string, expires time.Time) (backend.Item, backend.Lease) {
 	item := backend.Item{
 		Key:     r.prefix(key),
 		Value:   []byte(value),
@@ -469,7 +469,7 @@ func (r pack) addItem(t *testing.T, ctx context.Context, key, value string, expi
 	return item, *lease
 }
 
-func (r pack) newWatcher(t *testing.T, ctx context.Context) backend.Watcher {
+func (r pack) newWatcher(ctx context.Context, t *testing.T) backend.Watcher {
 	watcher, err := r.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{r.prefix("")}})
 	require.NoError(t, err)
 	return watcher
