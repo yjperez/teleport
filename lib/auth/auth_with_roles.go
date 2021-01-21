@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	u2fwrap "github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -1154,7 +1155,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 	}, nil
 }
 
-func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (a *ServerWithRoles) GetSignupU2FRegisterRequest(token string) (*u2fwrap.RegisterChallenge, error) {
 	// signup token are their own authz resource
 	return a.authServer.CreateSignupU2FRegisterRequest(token)
 }

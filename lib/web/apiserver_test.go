@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	u2fwrap "github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -1399,7 +1400,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	re, err := clt.Get(context.Background(), clt.Endpoint("webapi", "u2f", "signuptokens", token.GetName()), url.Values{})
 	c.Assert(err, IsNil)
 
-	var u2fRegReq u2f.RegisterRequest
+	var u2fRegReq u2fwrap.RegisterChallenge
 	c.Assert(json.Unmarshal(re.Bytes(), &u2fRegReq), IsNil)
 
 	u2fRegResp, err := s.mockU2F.RegisterResponse(&u2fRegReq)

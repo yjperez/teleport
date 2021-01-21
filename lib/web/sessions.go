@@ -32,6 +32,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
+	u2fwrap "github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -489,7 +490,7 @@ func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
 }
 
-func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterRequest, error) {
+func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2fwrap.RegisterChallenge, error) {
 	return s.proxyClient.GetSignupU2FRegisterRequest(token)
 }
 

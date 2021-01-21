@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	u2fwrap "github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1209,12 +1210,12 @@ func (c *Client) GenerateHostCert(
 }
 
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
-func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2fwrap.RegisterChallenge, error) {
 	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	var u2fRegReq u2f.RegisterRequest
+	var u2fRegReq u2fwrap.RegisterChallenge
 	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
 		return nil, err
 	}
@@ -2199,7 +2200,7 @@ type IdentityService interface {
 	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
+	GetSignupU2FRegisterRequest(token string) (*u2fwrap.RegisterChallenge, error)
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (services.User, error)
