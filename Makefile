@@ -62,6 +62,13 @@ BPF_TAG := bpf
 BPF_MESSAGE := "with BPF support"
 endif
 
+# https://github.com/marshallbrekka/go-u2fhost needs a 'hidraw' tag when
+# buildin on Linux to support USB U2F tokens. Only tsh needs this, it's the
+# only binary talking directly to U2F tokens.
+ifeq ("$(OS)","linux")
+HIDRAW_TAG := hidraw
+endif
+
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh
@@ -103,7 +110,7 @@ $(BUILDDIR)/teleport: ensure-webassets
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(HIDRAW_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 #
 # make full - Builds Teleport binaries with the built-in web assets and

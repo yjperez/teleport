@@ -110,6 +110,17 @@ github.com/aws/aws-sdk-go/service/s3/s3iface
 github.com/aws/aws-sdk-go/service/s3/s3manager
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
+# github.com/bearsh/hid v1.3.0
+github.com/bearsh/hid
+github.com/bearsh/hid/hidapi
+github.com/bearsh/hid/hidapi/hidapi
+github.com/bearsh/hid/hidapi/libusb
+github.com/bearsh/hid/hidapi/linux
+github.com/bearsh/hid/hidapi/mac
+github.com/bearsh/hid/hidapi/windows
+github.com/bearsh/hid/libusb
+github.com/bearsh/hid/libusb/libusb
+github.com/bearsh/hid/libusb/libusb/os
 # github.com/beevik/etree v1.1.0
 ## explicit
 github.com/beevik/etree
@@ -157,13 +168,6 @@ github.com/docker/spdystream/spdy
 # github.com/dustin/go-humanize v1.0.0
 ## explicit
 github.com/dustin/go-humanize
-# github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
-## explicit
-github.com/flynn/hid
-# github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
-## explicit
-github.com/flynn/u2f/u2fhid
-github.com/flynn/u2f/u2ftoken
 # github.com/fsouza/fake-gcs-server v1.11.6
 ## explicit
 github.com/fsouza/fake-gcs-server/fakestorage
@@ -341,6 +345,11 @@ github.com/mailgun/timetools
 # github.com/mailgun/ttlmap v0.0.0-20150816203249-16b258d86efc
 ## explicit
 github.com/mailgun/ttlmap
+# github.com/marshallbrekka/go-u2fhost v0.0.0-20210111072507-3ccdec8c8105
+## explicit
+github.com/marshallbrekka/go-u2fhost
+github.com/marshallbrekka/go-u2fhost/bytes
+github.com/marshallbrekka/go-u2fhost/hid
 # github.com/mattermost/xml-roundtrip-validator v0.0.0-20201208211235-fe770d50d911
 github.com/mattermost/xml-roundtrip-validator
 # github.com/mattn/go-runewidth v0.0.4

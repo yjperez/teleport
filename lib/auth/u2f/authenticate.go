@@ -1,16 +1,12 @@
 package u2f
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/flynn/u2f/u2fhid"
-	"github.com/flynn/u2f/u2ftoken"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/marshallbrekka/go-u2fhost"
 	"github.com/tstranex/u2f"
 )
 
@@ -80,85 +76,83 @@ func AuthenticateInit(params AuthenticateInitParams) (*AuthenticateChallenge, er
 //
 // Note: this function writes user interaction prompts to stdout.
 func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*AuthenticateChallengeResponse, error) {
-	// Open a U2F device.
-	devices, err := u2fhid.Devices()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Convert request struct between the different libraries.
+	req := &u2fhost.AuthenticateRequest{
+		Challenge: c.Challenge,
+		AppId:     c.AppID,
+		Facet:     facet,
+		KeyHandle: c.KeyHandle,
+		CheckOnly: true,
 	}
-	if len(devices) == 0 {
+
+	// Open available U2F devices.
+	allDevices := u2fhost.Devices()
+	if len(allDevices) == 0 {
 		return nil, trace.NotFound("no u2f devices found, please plug one in to authenticate")
 	}
-	// TODO(awly): support multiple plugged in devices, not just the first one.
-	dev, err := u2fhid.Open(devices[0])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer dev.Close()
-	tok := u2ftoken.NewToken(dev)
+	// Filter only the devices that can be opened and are registered for this user.
+	var openDevices []u2fhost.Device
+	for _, device := range allDevices {
+		if err := device.Open(); err != nil {
+			continue
+		}
+		// Call Authenticate with CheckOnly set in AuthenticateRequest, which
+		// will check whether this device has the provided KeyHandle.
+		if _, err := device.Authenticate(req); err != nil {
+			// BadKeyHandleError is expected when this device doesn't have the
+			// KeyHandle.
+			if _, ok := err.(*u2fhost.BadKeyHandleError); ok {
+				continue
+			}
+			// TestOfUserPresenceRequiredError is expected when this device
+			// *does* have the KeyHandle. Any other kind of error is
+			// unexpected.
+			if _, ok := err.(*u2fhost.TestOfUserPresenceRequiredError); !ok {
+				continue
+			}
+		}
 
-	// Because of the differences between github.com/tstranex/u2f and
-	// github.com/flynn/u2f, we need to do some data massaging.
-	//
-	// tstranex/u2f data formats are, frankly, weird. Some fields are
-	// base64-encoded (without padding) and some are not. And server-side
-	// validation breaks if you don't follow their exact formats. I suspect
-	// it's tied to some web browser behaviors, so we'll just go ahead and
-	// stick with this.
-	base64Encoding := base64.RawURLEncoding.WithPadding(base64.NoPadding)
-	keyHandle, err := base64Encoding.DecodeString(c.KeyHandle)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		openDevices = append(openDevices, device)
+		defer func(device u2fhost.Device) {
+			device.Close()
+		}(device)
 	}
-	application := sha256.Sum256([]byte(c.AppID))
-
-	// Challenge field in u2f.SignRequest is not the challenge you're supposed
-	// to send to the u2f token. Instead, you put the Challenge as a field of a
-	// JSON object (ClientData, with some other metadata) and hash that.
-	//
-	// Read more at
-	// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#authentication-messages
-	cd := u2f.ClientData{
-		Typ:       "navigator.id.getAssertion",
-		Challenge: c.Challenge,
-		Origin:    facet,
-	}
-	cdJSON, err := json.Marshal(cd)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cdHash := sha256.Sum256(cdJSON)
-
-	req := u2ftoken.AuthenticateRequest{
-		Challenge:   cdHash[:],
-		Application: application[:],
-		KeyHandle:   keyHandle,
-	}
-	if err := tok.CheckAuthenticate(req); err != nil {
-		return nil, trace.Wrap(err)
+	if len(openDevices) == 0 {
+		return nil, trace.NotFound("found %d u2f devices, but none of them are registered with this Teleport user", len(allDevices))
 	}
 
 	fmt.Println("Please press the button on your U2F key")
-	var res *u2ftoken.AuthenticateResponse
+	// Unset CheckOnly to perform the actual challenge signing.
+	req.CheckOnly = false
+
+	var res *u2fhost.AuthenticateResponse
+	var err error
 	start := time.Now()
+outer:
 	for {
 		if time.Since(start) > time.Minute {
 			return nil, trace.LimitExceeded("timed out waiting for a U2F key press")
 		}
-		res, err = tok.Authenticate(req)
-		if err == u2ftoken.ErrPresenceRequired {
-			time.Sleep(200 * time.Millisecond)
-			continue
+		// The below device.Authenticate calls are non-blocking. They return
+		// u2fhost.TestOfUserPresenceRequiredError until the user actually
+		// touches the device button.
+		for _, device := range openDevices {
+			res, err = device.Authenticate(req)
+			if err != nil {
+				if _, ok := err.(*u2fhost.TestOfUserPresenceRequiredError); ok {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			break outer
 		}
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		break
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	return &AuthenticateChallengeResponse{
-		KeyHandle:     c.KeyHandle,
-		SignatureData: base64Encoding.EncodeToString(res.RawResponse),
-		ClientData:    base64Encoding.EncodeToString(cdJSON),
+		KeyHandle:     res.KeyHandle,
+		SignatureData: res.SignatureData,
+		ClientData:    res.ClientData,
 	}, nil
 }
 
