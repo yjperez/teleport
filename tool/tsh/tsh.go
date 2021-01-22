@@ -1921,6 +1921,8 @@ func readClusterFlag(cf *CLIConf) {
 		return
 	}
 
+	// Handle "tsh login" a little differently here.
+
 	// Otherwise pick up site name from environment.
 	if clusterName := os.Getenv(siteEnvVar); clusterName != "" {
 		cf.SiteName = clusterName
