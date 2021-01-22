@@ -1154,6 +1154,8 @@ func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
 			return fmt.Sprintf(`psql "service=%v user=<user>"`, service)
 		}
 		return fmt.Sprintf(`psql "service=%v user=<user> dbname=<database>"`, service)
+	case defaults.ProtocolMySQL:
+		return fmt.Sprintf("mysql --defaults-group-suffix=_%v-%v", cluster, active.ServiceName)
 	}
 	return ""
 }
