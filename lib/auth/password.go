@@ -364,26 +364,12 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			return trace.Wrap(err)
 		}
 
-		reg, err := u2f.RegisterVerify(u2f.RegisterVerifyParams{
-			StorageKey: req.TokenID,
-			Resp:       req.U2FRegisterResponse,
-			Storage:    s.Identity,
+		return u2f.RegisterVerify(u2f.RegisterVerifyParams{
+			ChallengeStorageKey:    req.TokenID,
+			RegistrationStorageKey: username,
+			Resp:                   req.U2FRegisterResponse,
+			Storage:                s.Identity,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = s.UpsertU2FRegistration(username, reg)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = s.UpsertU2FRegistrationCounter(username, 0)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
 	}
 
 	return trace.BadParameter("unknown second factor type %q", cap.GetSecondFactor())

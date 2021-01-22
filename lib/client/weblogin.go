@@ -18,9 +18,7 @@ package client
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -32,15 +30,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
-	"github.com/flynn/u2f/u2fhid"
-	"github.com/flynn/u2f/u2ftoken"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 const (
@@ -126,7 +122,7 @@ type CreateSSHCertWithU2FReq struct {
 	User string `json:"user"`
 	// We only issue U2F sign requests after checking the password, so there's no need to check again.
 	// U2FSignResponse is the signature from the U2F device
-	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+	U2FSignResponse u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -502,7 +498,7 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	u2fSignRequestRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
+	challengeRaw, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), U2fSignRequestReq{
 		User: login.User,
 		Pass: login.Password,
 	})
@@ -510,84 +506,20 @@ func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	var u2fSignRequest u2f.SignRequest
-	if err := json.Unmarshal(u2fSignRequestRaw.Bytes(), &u2fSignRequest); err != nil {
+	var challenge u2f.AuthenticateChallenge
+	if err := json.Unmarshal(challengeRaw.Bytes(), &challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	devices, err := u2fhid.Devices()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(devices) == 0 {
-		return nil, trace.NotFound("no u2f devices found, please plug one in to authenticate")
-	}
-	dev, err := u2fhid.Open(devices[0])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer dev.Close()
-	tok := u2ftoken.NewToken(dev)
-
-	base64Encoding := base64.RawURLEncoding.WithPadding(base64.NoPadding)
-	keyHandle, err := base64Encoding.DecodeString(u2fSignRequest.KeyHandle)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	//challenge, err := base64Encoding.DecodeString(u2fSignRequest.Challenge)
-	//if err != nil {
-	//return nil, trace.Wrap(err)
-	//}
-	application := sha256.Sum256([]byte(u2fSignRequest.AppID))
 	facet := "https://" + strings.ToLower(login.ProxyAddr)
-
-	cd := u2f.ClientData{
-		Typ:       "navigator.id.getAssertion",
-		Challenge: u2fSignRequest.Challenge,
-		Origin:    facet,
-	}
-	cdJSON, err := json.Marshal(cd)
+	challengeResp, err := u2f.AuthenticateSignChallenge(challenge, facet)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	cdHash := sha256.Sum256(cdJSON)
-
-	req := u2ftoken.AuthenticateRequest{
-		Challenge:   cdHash[:],
-		Application: application[:],
-		KeyHandle:   keyHandle,
-	}
-	if err := tok.CheckAuthenticate(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	fmt.Println("Please press the button on your U2F key")
-	var res *u2ftoken.AuthenticateResponse
-	start := time.Now()
-	for {
-		if time.Since(start) > time.Minute {
-			return nil, trace.LimitExceeded("timed out waiting for a U2F key press")
-		}
-		res, err = tok.Authenticate(req)
-		if err == u2ftoken.ErrPresenceRequired {
-			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		break
-	}
-
-	u2fSignResponse := u2f.SignResponse{
-		KeyHandle:     u2fSignRequest.KeyHandle,
-		SignatureData: base64Encoding.EncodeToString(res.RawResponse),
-		ClientData:    base64Encoding.EncodeToString(cdJSON),
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), CreateSSHCertWithU2FReq{
 		User:              login.User,
-		U2FSignResponse:   u2fSignResponse,
+		U2FSignResponse:   *challengeResp,
 		PubKey:            login.PubKey,
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,

@@ -35,11 +35,19 @@ type (
 	Challenge = u2f.Challenge
 )
 
+// NewChallenge creates a new Challenge object for the given app.
+func NewChallenge(appID string, trustedFacets []string) (*Challenge, error) {
+	return u2f.NewChallenge(appID, trustedFacets)
+}
+
 // RegistrationStorage is the persistent storage needed to store temporary
 // state (challenge) during the registration sequence.
 type RegistrationStorage interface {
-	UpsertU2FRegisterChallenge(key string, challenge *u2f.Challenge) error
-	GetU2FRegisterChallenge(key string) (*u2f.Challenge, error)
+	UpsertU2FRegisterChallenge(key string, challenge *Challenge) error
+	GetU2FRegisterChallenge(key string) (*Challenge, error)
+
+	UpsertU2FRegistration(key string, reg *Registration) error
+	UpsertU2FRegistrationCounter(key string, counter uint32) error
 }
 
 // RegisterInitParams are the parameters for initiating the registration
@@ -53,7 +61,7 @@ type RegisterInitParams struct {
 // RegisterInit is the first step in the registration sequence. It runs on the
 // server and the returned RegisterChallenge must be sent to the client.
 func RegisterInit(params RegisterInitParams) (*RegisterChallenge, error) {
-	c, err := u2f.NewChallenge(params.AppConfig.AppID, params.AppConfig.Facets)
+	c, err := NewChallenge(params.AppConfig.AppID, params.AppConfig.Facets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,17 +78,18 @@ func RegisterInit(params RegisterInitParams) (*RegisterChallenge, error) {
 // RegisterInitParams are the parameters for verifying the
 // RegisterChallengeResponse.
 type RegisterVerifyParams struct {
-	Resp       RegisterChallengeResponse
-	StorageKey string
-	Storage    RegistrationStorage
+	Resp                   RegisterChallengeResponse
+	ChallengeStorageKey    string
+	RegistrationStorageKey string
+	Storage                RegistrationStorage
 }
 
 // RegisterVerify is the last step in the registration sequence. It runs on the
 // server and verifies the RegisterChallengeResponse returned by the client.
-func RegisterVerify(params RegisterVerifyParams) (*Registration, error) {
-	challenge, err := params.Storage.GetU2FRegisterChallenge(params.StorageKey)
+func RegisterVerify(params RegisterVerifyParams) error {
+	challenge, err := params.Storage.GetU2FRegisterChallenge(params.ChallengeStorageKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Set SkipAttestationVerify because we don't yet know what vendor CAs to
@@ -89,7 +98,14 @@ func RegisterVerify(params RegisterVerifyParams) (*Registration, error) {
 	if err != nil {
 		// U2F is a 3rd party library and sends back a string based error. Wrap this error with a
 		// trace.BadParameter error to allow the Web UI to unmarshal it correctly.
-		return nil, trace.BadParameter(err.Error())
+		return trace.BadParameter(err.Error())
 	}
-	return reg, nil
+
+	if err := params.Storage.UpsertU2FRegistration(params.RegistrationStorageKey, reg); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := params.Storage.UpsertU2FRegistrationCounter(params.RegistrationStorageKey, 0); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
