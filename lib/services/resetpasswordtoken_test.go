@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package types
+package services
 
 import (
 	"fmt"
@@ -69,15 +69,14 @@ func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 		},
 	}
 
-	marshaler := GetResetPasswordTokenMarshaler()
 	for _, tc := range testCases {
 		comment := check.Commentf("test case %q", tc.description)
-		out, err := marshaler.Unmarshal([]byte(tc.input))
+		out, err := UnmarshalResetPasswordToken([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
 		c.Assert(out, check.DeepEquals, tc.expected, comment)
-		data, err := marshaler.Marshal(out)
+		data, err := MarshalResetPasswordToken(out)
 		c.Assert(err, check.IsNil, comment)
-		out2, err := marshaler.Unmarshal(data)
+		out2, err := UnmarshalResetPasswordToken(data)
 		c.Assert(err, check.IsNil, comment)
 		c.Assert(out2, check.DeepEquals, tc.expected, comment)
 	}

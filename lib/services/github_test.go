@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package services
 
 import (
 	check "gopkg.in/check.v1"
@@ -41,7 +41,7 @@ func (s *GithubSuite) TestUnmarshal(c *check.C) {
     "logins": ["admin"]
   }]
 }}`)
-	connector, err := GetGithubConnectorMarshaler().Unmarshal(data)
+	connector, err := UnmarshalGithubConnector(data)
 	c.Assert(err, check.IsNil)
 	expected := NewGithubConnector("github", GithubConnectorSpecV3{
 		ClientID:     "aaa",

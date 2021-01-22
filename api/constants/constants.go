@@ -128,3 +128,6 @@ const (
 
 // RSAKeySize is the size of the RSA key.
 const RSAKeySize = 2048
+
+// LabelPattern is a regexp that describes a valid label key
+const LabelPattern = `^[a-zA-Z/.0-9_*-]+$`
