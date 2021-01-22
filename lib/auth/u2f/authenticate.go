@@ -80,6 +80,7 @@ func AuthenticateInit(params AuthenticateInitParams) (*AuthenticateChallenge, er
 //
 // Note: this function writes user interaction prompts to stdout.
 func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*AuthenticateChallengeResponse, error) {
+	// Open a U2F device.
 	devices, err := u2fhid.Devices()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,6 +88,7 @@ func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*Authenti
 	if len(devices) == 0 {
 		return nil, trace.NotFound("no u2f devices found, please plug one in to authenticate")
 	}
+	// TODO(awly): support multiple plugged in devices, not just the first one.
 	dev, err := u2fhid.Open(devices[0])
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,6 +96,14 @@ func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*Authenti
 	defer dev.Close()
 	tok := u2ftoken.NewToken(dev)
 
+	// Because of the differences between github.com/tstranex/u2f and
+	// github.com/flynn/u2f, we need to do some data massaging.
+	//
+	// tstranex/u2f data formats are, frankly, weird. Some fields are
+	// base64-encoded (without padding) and some are not. And server-side
+	// validation breaks if you don't follow their exact formats. I suspect
+	// it's tied to some web browser behaviors, so we'll just go ahead and
+	// stick with this.
 	base64Encoding := base64.RawURLEncoding.WithPadding(base64.NoPadding)
 	keyHandle, err := base64Encoding.DecodeString(c.KeyHandle)
 	if err != nil {
@@ -101,6 +111,12 @@ func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*Authenti
 	}
 	application := sha256.Sum256([]byte(c.AppID))
 
+	// Challenge field in u2f.SignRequest is not the challenge you're supposed
+	// to send to the u2f token. Instead, you put the Challenge as a field of a
+	// JSON object (ClientData, with some other metadata) and hash that.
+	//
+	// Read more at
+	// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#authentication-messages
 	cd := u2f.ClientData{
 		Typ:       "navigator.id.getAssertion",
 		Challenge: c.Challenge,

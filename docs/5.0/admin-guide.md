@@ -321,6 +321,12 @@ See [Github OAuth 2.0](#github-oauth-20) for details on how to configure it.
 
 ### SAML
 
+!!! tip "Version Warning"
+
+    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
+
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
+
 This connector type implements SAML authentication. It can be configured against
 any external identity manager like Okta or Auth0. This feature is only available
 for Teleport Enterprise.
@@ -334,6 +340,12 @@ auth_service:
 ```
 
 ### OIDC
+
+!!! tip "Version Warning"
+
+    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
+
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 Teleport implements OpenID Connect (OIDC) authentication, which is similar to
 SAML in principle. This feature is only available for Teleport Enterprise.
@@ -352,12 +364,9 @@ Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. By default U2F is disabled. To
 start using U2F:
 
-* Enable U2F in Teleport configuration `/etc/teleport.yaml` .
+* Enable U2F in Teleport configuration `/etc/teleport.yaml`.
 
-* For CLI-based logins you have to install [u2f-host](https://developers.yubico.com/libu2f-host/) utility.
-
-* For web-based logins you have to use Google Chrome and Firefox 67 or greater, are the only
-   supported U2F browsers at this time.
+* For web-based logins, check [this table of browser U2F support](https://caniuse.com/u2f).
 
 ``` yaml
 # snippet from /etc/teleport.yaml to show an example configuration of U2F:
@@ -389,30 +398,8 @@ pointing to a JSON file that mirrors `facets` in the auth config.
     of "facets" in the configuration file, but also to the JSON file referenced
     by `app_id`
 
-**Logging in with U2F**
-
-For logging in via the CLI, you must first install
-[u2f-host](https://developers.yubico.com/libu2f-host/). Installing:
-
-``` bash
-# OSX:
-$ brew install libu2f-host
-
-# Ubuntu 16.04 LTS:
-$ apt-get install u2f-host
-```
-
-Then invoke `tsh ssh` as usual to authenticate:
-
-``` bash
-$ tsh --proxy <proxy-addr> ssh <hostname>
-```
-
-!!! tip "Version Warning"
-
-    External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
-
-    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
+After U2F is configured in the cluster, new users will be prompted to enroll
+U2F keys at signup and prompted to use these keys on login.
 
 ## Adding and Deleting Users
 
