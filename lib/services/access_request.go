@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -26,6 +27,29 @@ import (
 
 	"github.com/pborman/uuid"
 )
+
+// ValidateAccessRequest validates the AccessRequest and sets default values
+func ValidateAccessRequest(ar AccessRequest) error {
+	if err := ar.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if uuid.Parse(ar.GetName()) == nil {
+		return trace.BadParameter("invalid access request id %q", ar.GetName())
+	}
+	return nil
+}
+
+// NewAccessRequest assembled an AccessRequest resource.
+func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
+	req, err := types.NewAccessRequest(uuid.New(), user, roles...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := ValidateAccessRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return req, nil
+}
 
 // RequestIDs is a collection of IDs for privilege escalation requests.
 type RequestIDs struct {
@@ -405,11 +429,11 @@ func ApplySystemAnnotations(annotate bool) ValidateRequestOption {
 	}
 }
 
-// ValidateAccessRequest validates an access request against the associated users's
+// ValidateAccessRequestForUser validates an access request against the associated users's
 // *statically assigned* roles. If expandRoles is true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
-func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
+func ValidateAccessRequestForUser(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
 	v, err := NewRequestValidator(getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)

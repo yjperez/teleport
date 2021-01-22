@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 )
 
 // AccessRequest is a request for temporarily granted roles
@@ -77,12 +76,12 @@ type AccessRequest interface {
 }
 
 // NewAccessRequest assembled an AccessRequest resource.
-func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
+func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
 	req := AccessRequestV3{
 		Kind:    KindAccessRequest,
 		Version: V3,
 		Metadata: Metadata{
-			Name: uuid.New(),
+			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
 			User:  user,
@@ -214,9 +213,6 @@ func (r *AccessRequestV3) Check() error {
 	}
 	if r.GetName() == "" {
 		return trace.BadParameter("access request id not set")
-	}
-	if uuid.Parse(r.GetName()) == nil {
-		return trace.BadParameter("invalid access request id %q", r.GetName())
 	}
 	if r.GetUser() == "" {
 		return trace.BadParameter("access request user name not set")

@@ -124,7 +124,6 @@ type (
 )
 
 var (
-	NewAccessRequest          = types.NewAccessRequest
 	GetAccessRequestMarshaler = types.GetAccessRequestMarshaler
 
 	RequestStrategyOptional = types.RequestStrategyOptional
