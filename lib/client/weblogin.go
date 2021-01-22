@@ -489,9 +489,8 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 
 // SSHAgentU2FLogin requests a U2F sign request (authentication challenge) via
 // the proxy. If the credentials are valid, the proxy wiil return a challenge.
-// We then call the official u2f-host binary to perform the signing and pass
-// the signature to the proxy. If the authentication succeeds, we will get a
-// temporary certificate back.
+// We then perform the signing and pass the signature to the proxy. If the
+// authentication succeeds, we will get a temporary certificate back.
 func SSHAgentU2FLogin(ctx context.Context, login SSHLoginU2F) (*auth.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
