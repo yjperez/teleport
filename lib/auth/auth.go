@@ -824,7 +824,22 @@ func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.SignRequest,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	registration, err := a.GetU2FRegistration(user)
+	devs, err := a.GetMFADevices(context.TODO(), user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(awly): support multiple U2F device challenges.
+	var u2fDev *types.U2FDevice
+	for _, dev := range devs {
+		if dev.GetU2F() != nil {
+			u2fDev = dev.GetU2F()
+			break
+		}
+	}
+	if u2fDev == nil {
+		return nil, trace.NotFound("no U2F devices registered for the user")
+	}
+	registration, err := u2fDev.GetU2FRegistration()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -854,15 +869,29 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 		return trace.Wrap(err)
 	}
 
-	reg, err := a.GetU2FRegistration(user)
+	ctx := context.TODO()
+	devs, err := a.GetMFADevices(ctx, user)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// TODO(awly): support multiple U2F device challenges.
+	// TODO(awly): support multiple U2F device challenges.
+	var u2fDev *types.MFADevice
+	for _, dev := range devs {
+		if dev.GetU2F() != nil {
+			u2fDev = dev
+			break
+		}
+	}
+	if u2fDev == nil {
+		return trace.NotFound("no U2F devices registered for the user")
 	}
 
-	counter, err := a.GetU2FRegistrationCounter(user)
+	reg, err := u2fDev.GetU2F().GetU2FRegistration()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	counter := u2fDev.GetU2F().Counter
 
 	challenge, err := a.GetU2FSignChallenge(user)
 	if err != nil {
@@ -874,7 +903,8 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 		return trace.Wrap(err)
 	}
 
-	err = a.UpsertU2FRegistrationCounter(user, newCounter)
+	u2fDev.GetU2F().Counter = newCounter
+	err = a.UpsertMFADevice(ctx, user, u2fDev)
 	if err != nil {
 		return trace.Wrap(err)
 	}

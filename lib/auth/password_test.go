@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -39,6 +40,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 )
 
@@ -207,8 +209,11 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	c.Assert(err, IsNil)
 
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	err = s.a.UpsertTOTP(req.User, otpSecret)
-	c.Assert(err, IsNil)
+	dev, err := types.NewTOTPDevice("otp", otpSecret)
+	c.Assert(err, check.IsNil)
+	ctx := context.Background()
+	err = s.a.UpsertMFADevice(ctx, req.User, dev)
+	c.Assert(err, check.IsNil)
 
 	fakeClock := clockwork.NewFakeClock()
 	s.a.SetClock(fakeClock)

@@ -7,6 +7,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -198,10 +199,23 @@ func (s *Server) CheckOTP(user string, otpToken string) error {
 			return trace.Wrap(err)
 		}
 	case teleport.TOTP:
-		otpSecret, err := s.GetTOTP(user)
+		ctx := context.TODO()
+		devs, err := s.GetMFADevices(ctx, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		// TODO(awly): support multiple TOTP devices.
+		var otpDev *types.TOTPDevice
+		for _, dev := range devs {
+			if dev.GetTotp() != nil {
+				otpDev = dev.GetTotp()
+				break
+			}
+		}
+		if otpDev == nil {
+			return trace.NotFound("user has no TOTP devices registered")
+		}
+		otpSecret := otpDev.Key
 
 		// get the previously used token to mitigate token replay attacks
 		usedToken, err := s.GetUsedTOTPToken(user)
@@ -343,6 +357,7 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 		return trace.Wrap(err)
 	}
 
+	ctx := context.TODO()
 	switch cap.GetSecondFactor() {
 	case teleport.OFF:
 		return nil
@@ -352,9 +367,11 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			return trace.Wrap(err)
 		}
 
-		// TODO: create a separate method to validate TOTP without inserting it first
-		err = s.UpsertTOTP(username, secrets.GetOTPKey())
+		dev, err := types.NewTOTPDevice("otp", secrets.GetOTPKey())
 		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := s.UpsertMFADevice(ctx, username, dev); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -383,13 +400,11 @@ func (s *Server) changeUserSecondFactor(req ChangePasswordWithTokenRequest, Rese
 			return trace.BadParameter(err.Error())
 		}
 
-		err = s.UpsertU2FRegistration(username, reg)
+		dev, err := types.NewU2FDevice("u2f", reg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		err = s.UpsertU2FRegistrationCounter(username, 0)
-		if err != nil {
+		if err := s.UpsertMFADevice(ctx, username, dev); err != nil {
 			return trace.Wrap(err)
 		}
 
