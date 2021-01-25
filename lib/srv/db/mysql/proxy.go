@@ -36,7 +36,7 @@ import (
 // Proxy proxies connections from MySQL clients to database services
 // over reverse tunnel. It runs inside Teleport proxy service.
 //
-// Implements db.DatabaseProxy.
+// Implements common.Proxy.
 type Proxy struct {
 	// TLSConfig is the proxy TLS configuration.
 	TLSConfig *tls.Config
@@ -48,7 +48,7 @@ type Proxy struct {
 	Log logrus.FieldLogger
 }
 
-// HandleConnection accepts connection from a Postgres client, authenticates
+// HandleConnection accepts connection from a MySQL client, authenticates
 // it and proxies it to an appropriate database service.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
 	server := p.makeServer(clientConn)
@@ -62,21 +62,21 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	siteConn, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
+	serviceConn, err := p.Service.Connect(ctx, server.GetUser(), server.GetDatabase())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer siteConn.Close()
+	defer serviceConn.Close()
 	// Before replying OK to the client which would make the client consider
 	// auth completed, wait for OK packet from db service indicating auth
 	// success.
-	err = p.waitForOK(server, siteConn)
+	err = p.waitForOK(server, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// Auth has completed, the client enters command phase, start proxying
 	// all messages back-and-forth.
-	err = p.Service.Proxy(ctx, tlsConn, siteConn)
+	err = p.Service.Proxy(ctx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -126,10 +126,10 @@ func (p *Proxy) performHandshake(server *server.Conn) (*tls.Conn, error) {
 	return tlsConn, nil
 }
 
-// waitForOK waits for OK_PACKET from the database service (siteConn)
-// which indicates that auth on the other side completed succesfully.
-func (p *Proxy) waitForOK(server *server.Conn, siteConn net.Conn) error {
-	packet, err := protocol.ReadPacket(siteConn)
+// waitForOK waits for OK_PACKET from the database service which indicates
+// that auth on the other side completed succesfully.
+func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
+	packet, err := protocol.ReadPacket(serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 
@@ -40,18 +39,14 @@ import (
 // connections coming over reverse tunnel from the proxy and proxies
 // them between the proxy and the MySQL database instance.
 //
-// Implements db.DatabaseEngine.
+// Implements common.Engine.
 type Engine struct {
 	// Auth handles database access authentication.
 	Auth *common.Auth
-	// StreamWriter is the async audit logger.
-	StreamWriter events.StreamWriter
-	// OnSessionStart is called upon successful connection to the database.
-	OnSessionStart func(common.Session, error) error
-	// OnSessionEnd is called upon disconnection from the database.
-	OnSessionEnd func(common.Session) error
-	// OnQuery is called when an SQL query is executed on the connection.
-	OnQuery func(common.Session, string) error
+	// Audit emits database access audit events.
+	Audit *common.Audit
+	// Context is the database server close context.
+	Context context.Context
 	// Clock is the clock interface.
 	Clock clockwork.Clock
 	// Log is used for logging.
@@ -96,12 +91,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = e.OnSessionStart(*sessionCtx, nil)
+	err = e.Audit.OnSessionStart(e.Context, *sessionCtx, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := e.OnSessionEnd(*sessionCtx)
+		err := e.Audit.OnSessionEnd(e.Context, *sessionCtx)
 		if err != nil {
 			e.Log.WithError(err).Error("Failed to emit audit event.")
 		}
@@ -126,7 +121,7 @@ func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
 		sessionCtx.DatabaseName, sessionCtx.DatabaseUser)
 	if err != nil {
-		if err := e.OnSessionStart(*sessionCtx, err); err != nil {
+		if err := e.Audit.OnSessionStart(e.Context, *sessionCtx, err); err != nil {
 			e.Log.WithError(err).Error("Failed to emit audit event.")
 		}
 		return trace.Wrap(err)
@@ -172,7 +167,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		log.Debugf("Client packet: %s.", packet)
 		switch packet[4] {
 		case mysql.COM_QUERY:
-			err := e.OnQuery(*sessionCtx, string(packet[5:]))
+			err := e.Audit.OnQuery(e.Context, *sessionCtx, string(packet[5:]))
 			if err != nil {
 				log.WithError(err).Error("Failed to emit audit event.")
 			}
