@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -169,11 +170,11 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			// even if the stream's context is cancelled
 			sessionData, err := eventStream.Complete(auth.CloseContext())
 			h, err := auth.GetClusterName()
-			session := &events.SessionUpload{
+			session := &apievents.SessionUpload{
 				Metadata: events.Metadata{
-					Type: events.SessionUploadEvent,
-					Code: events.SessionUploadCode,
-					Index:     events.SessionUploadIndex,
+					Type:        events.SessionUploadEvent,
+					Code:        events.SessionUploadCode,
+					Index:       events.SessionUploadIndex,
 					ClusterName: h.GetClusterName(),
 				},
 				SessionMetadata: events.SessionMetadata{

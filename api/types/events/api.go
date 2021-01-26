@@ -85,8 +85,14 @@ type Stream interface {
 	// Complete closes the stream and marks it finalized,
 	// releases associated resources, in case of failure,
 	// closes this stream on the client side
-	Complete(ctx context.Context) error
+	Complete(ctx context.Context) (*UploadMetadata, error)
 	// Close flushes non-uploaded flight stream data without marking
 	// the stream completed and closes the stream instance
 	Close(ctx context.Context) error
+}
+
+// UploadMetadata contains data about the session upload
+type UploadMetadata struct {
+	URL       string
+	SessionID string
 }

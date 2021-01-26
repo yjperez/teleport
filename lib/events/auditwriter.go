@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -371,7 +372,7 @@ func (a *AuditWriter) Close(ctx context.Context) error {
 // Complete closes the stream and marks it finalized,
 // releases associated resources, in case of failure,
 // closes this stream on the client side
-func (a *AuditWriter) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (a *AuditWriter) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	m, _ := a.stream.Complete(ctx)
 	return m, a.Close(ctx)
 }

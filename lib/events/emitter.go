@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -216,7 +217,7 @@ func (*DiscardStream) Close(ctx context.Context) error {
 }
 
 // Complete does nothing
-func (*DiscardStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (*DiscardStream) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	return nil, nil
 }
 
@@ -451,7 +452,7 @@ func (s *CheckingStream) Status() <-chan StreamStatus {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *CheckingStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (s *CheckingStream) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	return s.stream.Complete(ctx)
 }
 
@@ -530,7 +531,7 @@ func (t *TeeStream) Close(ctx context.Context) error {
 }
 
 // Complete closes the stream and marks it finalized
-func (t *TeeStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (t *TeeStream) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	return t.stream.Complete(ctx)
 }
 
@@ -653,7 +654,7 @@ func (s *CallbackStream) Status() <-chan StreamStatus {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *CallbackStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (s *CallbackStream) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	return s.stream.Complete(ctx)
 }
 
@@ -717,7 +718,7 @@ type ReportingStream struct {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *ReportingStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (s *ReportingStream) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	m, err := s.Stream.Complete(ctx)
 	if s.eventsC == nil {
 		return m, trace.Wrap(err)

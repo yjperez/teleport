@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -389,7 +390,7 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 }
 
 // Complete completes the upload, waits for completion and returns all allocated resources.
-func (s *ProtoStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (s *ProtoStream) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	m := s.cfg.Uploader.GetUploadMetadata(s.cfg.Upload.SessionID)
 	s.complete()
 	select {
@@ -1277,6 +1278,6 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	return nil
 }
 
-func (m *MemoryUploader) GetUploadMetadata(sessionID session.ID) *UploadMetadata {
+func (m *MemoryUploader) GetUploadMetadata(sessionID session.ID) *events.UploadMetadata {
 	return nil
 }

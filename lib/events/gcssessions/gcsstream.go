@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 
@@ -277,11 +278,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(s session.ID) *events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(s session.ID) *apievents.UploadMetadata {
 	url := fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.path, string(s))
-	return &events.UploadMetadata{
-		URL: url,
-		SessionID: s,
+	return &apievents.UploadMetadata{
+		URL:       url,
+		SessionID: string(s),
 	}
 }
 

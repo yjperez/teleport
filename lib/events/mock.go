@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -165,6 +166,6 @@ func (e *MockEmitter) Close(ctx context.Context) error {
 }
 
 // Complete does nothing
-func (e *MockEmitter) Complete(ctx context.Context) (*UploadMetadata, error) {
+func (e *MockEmitter) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	return nil, nil
 }

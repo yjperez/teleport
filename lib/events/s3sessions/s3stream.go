@@ -26,6 +26,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -188,10 +189,10 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata gets the metadata for session upload
-func (h *Handler) GetUploadMetadata(sessionID session.ID) *events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(sessionID session.ID) *apievents.UploadMetadata {
 	url := fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, sessionID)
-	return &events.UploadMetadata{
-		URL: url,
-		SessionID: sessionID,
+	return &apievents.UploadMetadata{
+		URL:       url,
+		SessionID: string(sessionID),
 	}
 }

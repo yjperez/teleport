@@ -23,6 +23,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/gravitational/trace"
@@ -490,31 +491,8 @@ type MultipartUploader interface {
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
 	// GetUploadMetadata gets the upload metadata
-	GetUploadMetadata(sessionID session.ID) *UploadMetadata
+	GetUploadMetadata(sessionID session.ID) *events.UploadMetadata
 }
-
-// TODO(dmitri): sync with new location
-/*
-// Stream is used to create continuous ordered sequence of events
-// associated with a session.
-type Stream interface {
-	// Emitter allows stream to emit audit event in the context of the event stream
-	Emitter
-	// Status returns channel broadcasting updates about the stream state:
-	// last event index that was uploaded and the upload ID
-	Status() <-chan StreamStatus
-	// Done returns channel closed when streamer is closed
-	// should be used to detect sending errors
-	Done() <-chan struct{}
-	// Complete closes the stream and marks it finalized,
-	// releases associated resources, in case of failure,
-	// closes this stream on the client side
-	Complete(ctx context.Context) (*UploadMetadata, error)
-	// Close flushes non-uploaded flight stream data without marking
-	// the stream completed and closes the stream instance
-	Close(ctx context.Context) error
-}
-*/
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer
 // associated with every session. It forwards session stream to the audit log
