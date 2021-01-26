@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/marshallbrekka/go-u2fhost"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -110,8 +111,13 @@ func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*Authenti
 	var openDevices []u2fhost.Device
 	for _, device := range allDevices {
 		if err := device.Open(); err != nil {
+			logrus.Warningf("Failed connecting to U2F device: %v", err)
 			continue
 		}
+		defer func(device u2fhost.Device) {
+			device.Close()
+		}(device)
+
 		// Call Authenticate with CheckOnly set in AuthenticateRequest, which
 		// will check whether this device has the provided KeyHandle.
 		if _, err := device.Authenticate(req); err != nil {
@@ -124,14 +130,12 @@ func AuthenticateSignChallenge(c AuthenticateChallenge, facet string) (*Authenti
 			// *does* have the KeyHandle. Any other kind of error is
 			// unexpected.
 			if _, ok := err.(*u2fhost.TestOfUserPresenceRequiredError); !ok {
+				logrus.Warningf("Failed checking server-provided KeyHandle against U2F device: %v", err)
 				continue
 			}
 		}
 
 		openDevices = append(openDevices, device)
-		defer func(device u2fhost.Device) {
-			device.Close()
-		}(device)
 	}
 	if len(openDevices) == 0 {
 		return nil, trace.NotFound("found %d u2f devices, but none of them are registered with this Teleport user", len(allDevices))
@@ -163,6 +167,12 @@ outer:
 			break outer
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+	if res == nil {
+		// "This should never happen", assuming the logic in the loop above is
+		// correct. But check for nil just in case, no user wants to see a
+		// panic.
+		return nil, trace.Errorf("failed to authenticate via the U2F device")
 	}
 
 	return &AuthenticateChallengeResponse{

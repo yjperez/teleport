@@ -63,7 +63,7 @@ BPF_MESSAGE := "with BPF support"
 endif
 
 # https://github.com/marshallbrekka/go-u2fhost needs a 'hidraw' tag when
-# buildin on Linux to support USB U2F tokens. Only tsh needs this, it's the
+# building on Linux to support USB U2F tokens. Only tsh needs this, it's the
 # only binary talking directly to U2F tokens.
 ifeq ("$(OS)","linux")
 HIDRAW_TAG := hidraw
